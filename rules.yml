@@ -1,0 +1,101 @@
+# CEL (Common Expression Language) Rulesets Configuration
+# This file demonstrates various ways to combine and organize CEL rules
+
+apiVersion: v1
+kind: RulesetConfig
+metadata:
+  name: cel-rulesets-example
+  description: "Examples of CEL rule combinations and patterns"
+
+# Individual rule definitions
+rules:
+  # Basic validation rules
+  age_validation:
+    name: "Age Validation"
+    description: "Validates user age requirements"
+    expression: "user.age >= globals.min_age"
+
+#  email_format:
+#    name: "Email Format Check"
+#    description: "Validates email format using regex"
+#    expression: "user.email.matches(\"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$\")"
+
+  # Business logic rules
+  business_hours:
+    name: "Business Hours Check"
+    description: "Validates if current time is within business hours"
+    expression: |
+      timestamp(request.time).getHours() >= globals.business_hours_start && 
+      timestamp(request.time).getHours() < globals.business_hours_end
+
+  rate_limiting:
+    name: "Rate Limiting"
+    description: "Checks request rate limits"
+    expression: "request.attempt_count <= globals.max_retries"
+
+  user_status:
+    name: "User Status Check"
+    description: "Validates user account status"
+    expression: "user.status == 'active' && !user.suspended"
+
+# Rule combinations and sets
+rulesets:
+  # Simple AND combination - all rules must pass
+  user_registration:
+    name: "User Registration Validation"
+    description: "All rules must pass for successful registration"
+    combination_type: "AND"
+    rules:
+      - age_validation
+#      - email_format
+      - user_status
+
+# Rule execution policies
+execution_policies:
+  fail_fast:
+    name: "Fail Fast Execution"
+    description: "Stop execution on first rule failure"
+    stop_on_failure: true
+
+  collect_all:
+    name: "Collect All Results"
+    description: "Execute all rules regardless of failures"
+    stop_on_failure: false
+    collect_errors: true
+
+  timeout_policy:
+    name: "Timeout Policy"
+    description: "Set execution timeouts for rules"
+    max_execution_time: "5s"
+    timeout_behavior: "fail" # or "skip" or "default_pass"
+
+# Error handling and logging
+error_handling:
+  default_policy: "fail" # "fail", "pass", "skip"
+  log_level: "INFO" # "DEBUG", "INFO", "WARN", "ERROR"
+  custom_error_messages:
+    age_validation: "User must be at least 18 years old"
+    email_format: "Please provide a valid email address"
+    domain_whitelist: "Email domain is not allowed"
+    business_hours: "Service only available during business hours (9 AM - 5 PM)"
+
+globals:
+  min_age: 13 # Lower age requirement for testing
+  execution_policies:
+    default: "collect_all"
+
+# Environment-specific overrides
+environments:
+  development:
+    globals:
+      min_age: 13 # Lower age requirement for testing
+    execution_policies:
+      default: "collect_all"
+
+  production:
+    globals:
+      min_age: 18
+    execution_policies:
+      default: "fail_fast"
+    error_handling:
+      log_level: "ERROR"
