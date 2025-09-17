@@ -24,7 +24,8 @@ rules:
   email_format:
     name: "Email Format Check"
     description: "Validates email format using regex"
-    expression: "user.email.matches(\"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$\")"
+    expression: |
+      user.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
 ```
 
 ## Example: Combining Rules

@@ -1,3 +1,4 @@
+# nonk8s
 # CEL (Common Expression Language) Rulesets Configuration
 # This file demonstrates various ways to combine and organize CEL rules
 
@@ -15,11 +16,11 @@ rules:
     description: "Validates user age requirements"
     expression: "user.age >= globals.min_age"
 
-#  email_format:
-#    name: "Email Format Check"
-#    description: "Validates email format using regex"
-#    expression: "user.email.matches(\"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$\")"
-
+  email_format:
+    name: "Email Format Check"
+    description: "Validates email format using regex"
+    expression: |
+      user.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
   # Business logic rules
   business_hours:
     name: "Business Hours Check"
