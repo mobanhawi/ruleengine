@@ -1,4 +1,4 @@
-package main
+package ruleengine
 
 import (
 	"context"
@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/overloads"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 )
 
 // NewRuleEngine creates a new ruleengine instance
-func NewRuleEngine(configPath string, environment string) (*RuleEngine, error) {
+func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEngine, error) {
 	config, err := loadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -25,46 +24,6 @@ func NewRuleEngine(configPath string, environment string) (*RuleEngine, error) {
 				config.Globals[k] = v
 			}
 		}
-	}
-
-	// Create CEL environment with standard functions and custom variables
-	// Most CEL applications will declare variables that can be referenced within expressions.
-	// Declarations of variables specify a name and a type.
-	// A variable's type may either be a CEL builtin type, a protocol buffer well-known type,
-	// or any protobuf message type so long as its descriptor is also provided to CEL
-	env, err := cel.NewEnv(
-		cel.Variable("user", cel.DynType),
-		cel.Variable("request", cel.DynType),
-		cel.Variable("payment", cel.DynType),
-		cel.Variable("globals", cel.DynType),
-		cel.Variable("rules", cel.DynType),
-		cel.Variable("rulesets", cel.DynType),
-		// Add custom functions
-		cel.Function("timestamp",
-			cel.Overload(overloads.StringToTimestamp, []*cel.Type{cel.StringType}, cel.TimestampType,
-				cel.UnaryBinding(func(val ref.Val) ref.Val {
-					str, ok := val.Value().(string)
-					if !ok {
-						return types.NewErr("timestamp() requires string input")
-					}
-					t, err := time.Parse(time.RFC3339, str)
-					if err != nil {
-						return types.NewErr("invalid timestamp format: %v", err)
-					}
-					return types.Timestamp{Time: t}
-				}),
-			),
-		),
-		cel.Function("now",
-			cel.Overload("now", []*cel.Type{}, cel.TimestampType,
-				cel.FunctionBinding(func(args ...ref.Val) ref.Val {
-					return types.Timestamp{Time: time.Now()}
-				}),
-			),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
 	}
 
 	engine := &RuleEngine{
