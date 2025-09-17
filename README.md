@@ -1,4 +1,4 @@
-# Rule Engine 📜
+# Rule Engine (Systema)
 
 This repository contains a configurable rule engine using [CEL (Common Expression Language)](https://opensource.google/projects/cel) for flexible business logic and validation.
 
