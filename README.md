@@ -66,11 +66,12 @@ Customize error handling and logging:
 
 ```yaml
 error_handling:
-  default_policy: "fail"
-  log_level: "INFO"
+  execution_policy: "collect_all"
   custom_error_messages:
     age_validation: "User must be at least 18 years old"
     email_format: "Please provide a valid email address"
+    domain_whitelist: "Email domain is not allowed"
+    business_hours: "Service only available during business hours (9 AM - 5 PM)"
 ```
 
 ## Environment Overrides
@@ -81,24 +82,18 @@ Override globals and policies per environment:
 environments:
   development:
     globals:
-      min_age: 13
-    execution_policies:
-      default: "collect_all"
+      min_age: 13 # Lower age requirement for testing
 
   production:
     globals:
       min_age: 18
-    execution_policies:
-      default: "fail_fast"
     error_handling:
-      log_level: "ERROR"
+      default_policy: "fail_fast"
 ```
 
 ## Usage
 
-1. Edit `rules.yml` to define your rules and policies.
-2. Run the rule engine according to your projects instructions.
-3. Check logs and error messages for validation results.
+To use the rule engine, load the configuration from `rules.yml`, set up the environment, and evaluate rules against input data `context`.
 
 For more details, see the comments in `rules.yml` or consult the CEL documentation. 
 
