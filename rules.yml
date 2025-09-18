@@ -57,23 +57,16 @@ execution_policies:
     name: "Fail Fast Execution"
     description: "Stop execution on first rule failure"
     stop_on_failure: true
+    max_execution_time: "5s"
 
   collect_all:
     name: "Collect All Results"
     description: "Execute all rules regardless of failures"
     stop_on_failure: false
-    collect_errors: true
-
-  timeout_policy:
-    name: "Timeout Policy"
-    description: "Set execution timeouts for rules"
-    max_execution_time: "5s"
-    timeout_behavior: "fail" # or "skip" or "default_pass"
 
 # Error handling and logging
 error_handling:
-  default_policy: "fail" # "fail", "pass", "skip"
-  log_level: "INFO" # "DEBUG", "INFO", "WARN", "ERROR"
+  execution_policy: "collect_all"
   custom_error_messages:
     age_validation: "User must be at least 18 years old"
     email_format: "Please provide a valid email address"
@@ -82,21 +75,15 @@ error_handling:
 
 globals:
   min_age: 13 # Lower age requirement for testing
-  execution_policies:
-    default: "collect_all"
 
 # Environment-specific overrides
 environments:
   development:
     globals:
       min_age: 13 # Lower age requirement for testing
-    execution_policies:
-      default: "collect_all"
 
   production:
     globals:
       min_age: 18
-    execution_policies:
-      default: "fail_fast"
     error_handling:
-      log_level: "ERROR"
+      default_policy: "fail_fast"
