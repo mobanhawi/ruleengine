@@ -2,6 +2,7 @@ package ruleengine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,7 +23,13 @@ type RuleEngine struct {
 	config   *RulesetConfig
 	env      *cel.Env
 	programs map[string]cel.Program
+	policy   Policy
 	context  map[string]interface{}
+}
+
+type Policy struct {
+	StopOnFailure    bool
+	MaxExecutionTime time.Duration
 }
 
 // NewRuleEngine creates a new ruleengine instance
@@ -52,9 +59,29 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEn
 		}
 	}
 
+	// Set up defaults execution policy
+	policy := Policy{
+		StopOnFailure:    true,
+		MaxExecutionTime: 5 * time.Second,
+	}
+
+	if configPolicy, ok := config.ExecutionPolicies[config.ErrorHandling.ExecutionPolicy]; ok {
+		if configPolicy.MaxExecutionTime != "" {
+			dur, err := time.ParseDuration(configPolicy.MaxExecutionTime)
+			if err != nil {
+				return nil, fmt.Errorf("invalid max_execution_time in execution policy: %w", err)
+			}
+			policy.MaxExecutionTime = dur
+		}
+		policy.StopOnFailure = configPolicy.StopOnFailure
+	} else {
+		return nil, fmt.Errorf("execution policy '%s' not found in config", config.ErrorHandling.ExecutionPolicy)
+	}
+
 	engine := &RuleEngine{
 		config:   config,
 		env:      env,
+		policy:   policy,
 		programs: make(map[string]cel.Program),
 		context:  make(map[string]interface{}),
 	}
@@ -117,10 +144,17 @@ func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 		passed = boolVal
 	}
 
+	// handle custom error messages
+	var customError error
+	if !passed {
+		if msg, ok := re.config.ErrorHandling.CustomErrorMessages[ruleName]; ok {
+			customError = errors.New(msg)
+		}
+	}
 	return RuleResult{
 		RuleName: ruleName,
 		Passed:   passed,
-		Value:    value,
+		Error:    customError,
 		Duration: time.Since(start),
 	}, nil
 }
@@ -189,7 +223,6 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 			result.RuleResults[customRuleName] = RuleResult{
 				RuleName: customRuleName,
 				Passed:   passed,
-				Value:    value,
 				Duration: time.Since(start),
 			}
 		}
@@ -202,7 +235,9 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		for _, ruleResult := range result.RuleResults {
 			if !ruleResult.Passed {
 				result.Passed = false
-				break
+				if re.policy.StopOnFailure {
+					break
+				}
 			}
 		}
 
@@ -221,12 +256,22 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		for _, ruleResult := range result.RuleResults {
 			if !ruleResult.Passed {
 				result.Passed = false
-				break
+				if re.policy.StopOnFailure {
+					break
+				}
 			}
 		}
 	}
 
+	var customError error
+	if !result.Passed {
+		if msg, ok := re.config.ErrorHandling.CustomErrorMessages[rulesetName]; ok {
+			customError = errors.New(msg)
+		}
+	}
+
 	result.Duration = time.Since(start)
+	result.Error = customError
 	return result, nil
 }
 

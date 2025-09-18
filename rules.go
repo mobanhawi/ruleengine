@@ -8,7 +8,6 @@ import (
 type RuleResult struct {
 	RuleName string
 	Passed   bool
-	Value    interface{}
 	Error    error
 	Duration time.Duration
 }
