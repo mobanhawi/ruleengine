@@ -57,7 +57,7 @@ execution_policies:
     name: "Fail Fast Execution"
     description: "Stop execution on first rule failure"
     stop_on_failure: true
-    max_execution_time: "5s"
+    max_execution_time: "1ns"
 
   collect_all:
     name: "Collect All Results"

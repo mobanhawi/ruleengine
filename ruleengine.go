@@ -1,7 +1,6 @@
 package ruleengine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -276,13 +275,14 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 }
 
 // EvaluateAllRulesets evaluates all rulesets defined in the configuration
-func (re *RuleEngine) EvaluateAllRulesets(ctx context.Context) (map[string]RulesetResult, error) {
+func (re *RuleEngine) EvaluateAllRulesets() (map[string]RulesetResult, error) {
 	results := make(map[string]RulesetResult)
-
+	ticker := time.NewTicker(re.policy.MaxExecutionTime)
+	defer ticker.Stop()
 	for rulesetName := range re.config.Rulesets {
 		select {
-		case <-ctx.Done():
-			return results, ctx.Err()
+		case <-ticker.C:
+			return results, fmt.Errorf("timed out waiting for ruleset %s", rulesetName)
 		default:
 		}
 
