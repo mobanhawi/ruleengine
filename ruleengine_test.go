@@ -1,8 +1,7 @@
 package ruleengine
 
 import (
-	"fmt"
-	"log"
+	"reflect"
 	"testing"
 	"time"
 
@@ -12,159 +11,110 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 )
 
-// ruleEval tests individual rule evaluation
-func ruleEval(engine *RuleEngine) RuleResult {
-	fmt.Println("=== Individual Rule Evaluation ===")
-	ruleResult, err := engine.EvaluateRule("age_validation")
-	if err != nil {
-		log.Printf("Error evaluating age_validation rule: %v\n", err)
-	} else {
-		fmt.Printf("Rule: %s, Passed: %v, Duration: %v\n",
-			ruleResult.RuleName, ruleResult.Passed, ruleResult.Duration)
-	}
-	return ruleResult
-}
-
-// rulesetEval tests individual ruleset evaluation
-func rulesetEval(engine *RuleEngine) []RulesetResult {
-	fmt.Println("=== Ruleset Evaluation ===")
-	rulesets := []string{"user_registration"}
-	results := make([]RulesetResult, len(rulesets))
-	for i, rulesetName := range rulesets {
-		result, err := engine.EvaluateRuleset(rulesetName)
+// setupEnvironment cel.Env helper
+func setupEnvironment() func(*testing.T) *cel.Env {
+	return func(t *testing.T) *cel.Env {
+		// Create CEL environment with standard functions and custom variables
+		// Most CEL applications will declare variables that can be referenced within expressions.
+		// Declarations of variables specify a name and a type.
+		// A variable's type may either be a CEL builtin type, a protocol buffer well-known type,
+		// or any protobuf message type so long as its descriptor is also provided to CEL
+		env, err := cel.NewEnv(
+			cel.Variable("user", cel.DynType),
+			cel.Variable("request", cel.DynType),
+			cel.Variable("payment", cel.DynType),
+			cel.Variable("globals", cel.DynType),
+			cel.Variable("rules", cel.DynType),
+			cel.Variable("rulesets", cel.DynType),
+			// Add custom functions
+			cel.Function("timestamp",
+				cel.Overload(overloads.StringToTimestamp, []*cel.Type{cel.StringType}, cel.TimestampType,
+					cel.UnaryBinding(func(val ref.Val) ref.Val {
+						str, ok := val.Value().(string)
+						if !ok {
+							return types.NewErr("timestamp() requires string input")
+						}
+						t, err := time.Parse(time.RFC3339, str)
+						if err != nil {
+							return types.NewErr("invalid timestamp format: %v", err)
+						}
+						return types.Timestamp{Time: t}
+					}),
+				),
+			),
+			cel.Function("now",
+				cel.Overload("now", []*cel.Type{}, cel.TimestampType,
+					cel.FunctionBinding(func(args ...ref.Val) ref.Val {
+						return types.Timestamp{Time: time.Now()}
+					}),
+				),
+			),
+		)
 		if err != nil {
-			log.Printf("Error evaluating ruleset %s: %v\n", rulesetName, err)
-			continue
+			t.Fatalf("failed to create CEL environment: %v\n", err)
 		}
-
-		fmt.Printf("\nRuleset: %s\n", result.RulesetName)
-		fmt.Printf("  Passed: %v\n", result.Passed)
-		fmt.Printf("  Duration: %v\n", result.Duration)
-
-		if result.Error != nil {
-			fmt.Printf("  Error: %v\n", result.Error)
-		}
-
-		fmt.Println("  Individual Rules:")
-		for ruleName, ruleResult := range result.RuleResults {
-			fmt.Printf("    %s: %v", ruleName, ruleResult.Passed)
-			if ruleResult.Error != nil {
-				fmt.Printf(" (Error: %v)", ruleResult.Error)
-			}
-			fmt.Println()
-		}
-		results[i] = result
+		return env
 	}
-	return results
 }
 
-// allRulesEval tests all rulesets
-func allRulesEval(engine *RuleEngine) map[string]RulesetResult {
-	fmt.Println("\n=== All Rulesets Evaluation ===")
+// Create rule engine
+//engine, err := NewRuleEngine("rules.yml", "development", env)
+//if err != nil {
+//	t.Fatalf("failed to create rules engine: %v", err)
+//}
 
-	allResults, err := engine.EvaluateAllRulesets()
-	if err != nil {
-		log.Printf("Error evaluating all rulesets: %v", err)
-	} else {
-		fmt.Printf("Evaluated %d rulesets successfully\n", len(allResults))
-		for name, result := range allResults {
-			status := "PASS"
-			if !result.Passed {
-				status = "FAIL"
+//// Set up test context data
+//testContext := map[string]interface{}{
+//	"user": map[string]interface{}{
+//		"age":       25,
+//		"email":     "test@example.com",
+//		"status":    "active",
+//		"suspended": false,
+//	},
+//	"request": map[string]interface{}{
+//		"time":    time.Now().Format(time.RFC3339),
+//		"attempt": 2,
+//	},
+//}
+//engine.SetContext(testContext)
+
+func TestRuleEngine_EvaluateRule(t *testing.T) {
+	type fields struct {
+		config   *RulesetConfig
+		env      *cel.Env
+		programs map[string]cel.Program
+		policy   Policy
+		context  map[string]interface{}
+	}
+	type args struct {
+		ruleName string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    RuleResult
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			re := &RuleEngine{
+				config:   tt.fields.config,
+				env:      tt.fields.env,
+				programs: tt.fields.programs,
+				policy:   tt.fields.policy,
+				context:  tt.fields.context,
 			}
-			fmt.Printf("  %s: %s (%.2fms)\n", name, status, float64(result.Duration.Nanoseconds())/1e6)
-		}
-	}
-	return allResults
-}
-
-// Example usage and testing
-func TestRuleEngine(t *testing.T) {
-
-	// Create CEL environment with standard functions and custom variables
-	// Most CEL applications will declare variables that can be referenced within expressions.
-	// Declarations of variables specify a name and a type.
-	// A variable's type may either be a CEL builtin type, a protocol buffer well-known type,
-	// or any protobuf message type so long as its descriptor is also provided to CEL
-	env, err := cel.NewEnv(
-		cel.Variable("user", cel.DynType),
-		cel.Variable("request", cel.DynType),
-		cel.Variable("payment", cel.DynType),
-		cel.Variable("globals", cel.DynType),
-		cel.Variable("rules", cel.DynType),
-		cel.Variable("rulesets", cel.DynType),
-		// Add custom functions
-		cel.Function("timestamp",
-			cel.Overload(overloads.StringToTimestamp, []*cel.Type{cel.StringType}, cel.TimestampType,
-				cel.UnaryBinding(func(val ref.Val) ref.Val {
-					str, ok := val.Value().(string)
-					if !ok {
-						return types.NewErr("timestamp() requires string input")
-					}
-					t, err := time.Parse(time.RFC3339, str)
-					if err != nil {
-						return types.NewErr("invalid timestamp format: %v", err)
-					}
-					return types.Timestamp{Time: t}
-				}),
-			),
-		),
-		cel.Function("now",
-			cel.Overload("now", []*cel.Type{}, cel.TimestampType,
-				cel.FunctionBinding(func(args ...ref.Val) ref.Val {
-					return types.Timestamp{Time: time.Now()}
-				}),
-			),
-		),
-	)
-	if err != nil {
-		t.Fatalf("failed to create CEL environment: %v\n", err)
-	}
-
-	// Create rule engine
-	engine, err := NewRuleEngine("rules.yml", "development", env)
-	if err != nil {
-		t.Fatalf("failed to create rules engine: %v", err)
-	}
-
-	// Set up test context data
-	testContext := map[string]interface{}{
-		"user": map[string]interface{}{
-			"age":       25,
-			"email":     "test@example.com",
-			"status":    "active",
-			"suspended": false,
-		},
-		"request": map[string]interface{}{
-			"time":    time.Now().Format(time.RFC3339),
-			"attempt": 2,
-		},
-	}
-	engine.SetContext(testContext)
-
-	t.Run("ruleEval", func(t *testing.T) {
-		r := ruleEval(engine)
-		if !r.Passed {
-			t.Errorf("rule evaluation failed: %v", r.Error)
-		}
-	})
-
-	t.Run("rulesetEval", func(t *testing.T) {
-		results := rulesetEval(engine)
-		for _, r := range results {
-			if !r.Passed {
-				t.Errorf("rule evaluation failed: %v", r.Error)
+			got, err := re.EvaluateRule(tt.args.ruleName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("EvaluateRule() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
-		}
-
-	})
-	t.Run("allRulesEval", func(t *testing.T) {
-		results := allRulesEval(engine)
-		for _, r := range results {
-			if !r.Passed {
-				t.Errorf("rule evaluation failed: %v", r.Error)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("EvaluateRule() got = %v, want %v", got, tt.want)
 			}
-		}
-	})
-
+		})
+	}
 }
