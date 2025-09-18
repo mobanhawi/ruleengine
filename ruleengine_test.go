@@ -1,7 +1,6 @@
 package ruleengine
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"testing"
@@ -62,10 +61,8 @@ func rulesetEval(engine *RuleEngine) []RulesetResult {
 // allRulesEval tests all rulesets
 func allRulesEval(engine *RuleEngine) map[string]RulesetResult {
 	fmt.Println("\n=== All Rulesets Evaluation ===")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // TODO: use execution policy timeout
-	defer cancel()
 
-	allResults, err := engine.EvaluateAllRulesets(ctx)
+	allResults, err := engine.EvaluateAllRulesets()
 	if err != nil {
 		log.Printf("Error evaluating all rulesets: %v", err)
 	} else {
