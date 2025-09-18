@@ -2,26 +2,17 @@ package ruleengine
 
 import (
 	"time"
-
-	"github.com/google/cel-go/cel"
 )
 
-// RuleEngine
-type RuleEngine struct {
-	config   *RulesetConfig
-	env      *cel.Env
-	programs map[string]cel.Program
-	context  map[string]interface{}
-}
-
+// RuleResult represents the outcome of a single rule evaluation
 type RuleResult struct {
 	RuleName string
 	Passed   bool
-	Value    interface{}
 	Error    error
 	Duration time.Duration
 }
 
+// RulesetResult represents the outcome of a ruleset evaluation
 type RulesetResult struct {
 	RulesetName string
 	Passed      bool

@@ -6,7 +6,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Configuration structures matching the YAML file
+// RulesetConfig is the top-level configuration structure
 type RulesetConfig struct {
 	APIVersion        string                     `yaml:"apiVersion"`
 	Kind              string                     `yaml:"kind"`
@@ -19,56 +19,54 @@ type RulesetConfig struct {
 	Environments      map[string]Environment     `yaml:"environments"`
 }
 
+// Rule represents an individual rule with its properties
 type Rule struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	Expression  string `yaml:"expression"`
 }
 
+// Ruleset represents a collection of rules and their evaluation logic
 type Ruleset struct {
-	Name            string          `yaml:"name"`
-	Description     string          `yaml:"description"`
-	CombinationType string          `yaml:"combination_type"`
-	Rules           []string        `yaml:"rules"`
-	CustomRules     map[string]Rule `yaml:"custom_rules"`
-	Expression      string          `yaml:"expression"`
-	Extends         string          `yaml:"extends"`
+	Name            string                 `yaml:"name"`
+	Description     string                 `yaml:"description"`
+	CombinationType RulesetCombinationType `yaml:"combination_type"`
+	Rules           []string               `yaml:"rules"`
+	CustomRules     map[string]Rule        `yaml:"custom_rules"`
+	Expression      string                 `yaml:"expression"`
+	Extends         string                 `yaml:"extends"`
 }
 
+type RulesetCombinationType string
+
+// Metadata contains basic information about the ruleset configuration
 type Metadata struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 }
 
+// ExecutionPolicy defines how rulesets should be executed
 type ExecutionPolicy struct {
 	Name             string `yaml:"name"`
 	Description      string `yaml:"description"`
 	StopOnFailure    bool   `yaml:"stop_on_failure"`
-	CollectErrors    bool   `yaml:"collect_errors"`
 	MaxExecutionTime string `yaml:"max_execution_time"`
-	TimeoutBehavior  string `yaml:"timeout_behavior"`
 }
 
+// ErrorHandling defines error handling settings for the rule engine
 type ErrorHandling struct {
-	DefaultPolicy       string            `yaml:"default_policy"`
-	LogLevel            string            `yaml:"log_level"`
+	ExecutionPolicy     string            `yaml:"execution_policy"`
 	CustomErrorMessages map[string]string `yaml:"custom_error_messages"`
 }
 
+// Environment defines settings for different execution environments
 type Environment struct {
-	Globals           map[string]interface{}   `yaml:"globals"`
-	ExecutionPolicies ExecutionPolicies        `yaml:"execution_policies"`
-	ErrorHandling     EnvironmentErrorHandling `yaml:"error_handling"`
+	Globals         map[string]interface{} `yaml:"globals"`
+	ExecutionPolicy string                 `yaml:"execution_policy"`
+	ErrorHandling   ErrorHandling          `yaml:"error_handling"`
 }
 
-type ExecutionPolicies struct {
-	Default string `yaml:"default"`
-}
-
-type EnvironmentErrorHandling struct {
-	Default string `yaml:"default"`
-}
-
+// loadConfig reads and parses the YAML configuration file
 func loadConfig(configPath string) (*RulesetConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {

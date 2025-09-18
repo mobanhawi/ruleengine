@@ -2,6 +2,7 @@ package ruleengine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,27 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 )
+
+const (
+	// combinationTypeAnd is logical AND combination of rulesets
+	combinationTypeAnd RulesetCombinationType = "AND"
+	// combinationTypeOr is logical OR combination of rulesets
+	combinationTypeOr RulesetCombinationType = "OR"
+)
+
+// RuleEngine holds the configuration and compiled programs for rule evaluation
+type RuleEngine struct {
+	config   *RulesetConfig
+	env      *cel.Env
+	programs map[string]cel.Program
+	policy   Policy
+	context  map[string]interface{}
+}
+
+type Policy struct {
+	StopOnFailure    bool
+	MaxExecutionTime time.Duration
+}
 
 // NewRuleEngine creates a new ruleengine instance
 func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEngine, error) {
@@ -18,22 +40,53 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEn
 	}
 
 	// Apply environment-specific overrides
-	if env, exists := config.Environments[environment]; exists {
-		if env.Globals != nil {
-			for k, v := range env.Globals {
+	if envConfig, exists := config.Environments[environment]; exists {
+		// Apply environment-specific globals
+		if envConfig.Globals != nil {
+			for k, v := range envConfig.Globals {
 				config.Globals[k] = v
 			}
 		}
+		// Apply environment-specific error handling execution policy
+		if envConfig.ErrorHandling.ExecutionPolicy != "" {
+			config.ErrorHandling.ExecutionPolicy = envConfig.ErrorHandling.ExecutionPolicy
+		}
+		// Apply environment-specific custom error messages
+		if envConfig.ErrorHandling.CustomErrorMessages != nil {
+			for k, v := range envConfig.ErrorHandling.CustomErrorMessages {
+				config.ErrorHandling.CustomErrorMessages[k] = v
+			}
+		}
+	}
+
+	// Set up defaults execution policy
+	policy := Policy{
+		StopOnFailure:    true,
+		MaxExecutionTime: 5 * time.Second,
+	}
+
+	if configPolicy, ok := config.ExecutionPolicies[config.ErrorHandling.ExecutionPolicy]; ok {
+		if configPolicy.MaxExecutionTime != "" {
+			dur, err := time.ParseDuration(configPolicy.MaxExecutionTime)
+			if err != nil {
+				return nil, fmt.Errorf("invalid max_execution_time in execution policy: %w", err)
+			}
+			policy.MaxExecutionTime = dur
+		}
+		policy.StopOnFailure = configPolicy.StopOnFailure
+	} else {
+		return nil, fmt.Errorf("execution policy '%s' not found in config", config.ErrorHandling.ExecutionPolicy)
 	}
 
 	engine := &RuleEngine{
 		config:   config,
 		env:      env,
+		policy:   policy,
 		programs: make(map[string]cel.Program),
 		context:  make(map[string]interface{}),
 	}
 
-	// Pre-compile all rule expressions
+	// Pre-compile all rule expressions into `cel.Program`
 	err = engine.compileRules()
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile rules: %w", err)
@@ -42,7 +95,7 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEn
 	return engine, nil
 }
 
-// SetContext sets the evaluation context for the rule engine, TODO: rename
+// SetContext sets the evaluation context for the rule engine
 func (re *RuleEngine) SetContext(ctx map[string]interface{}) {
 	re.context = ctx
 	// Always include globals in context
@@ -60,16 +113,17 @@ func (re *RuleEngine) SetContext(ctx map[string]interface{}) {
 	}
 }
 
+// EvaluateRule evaluates a single rule `cel.Program` by name
 func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 	start := time.Now()
 
-	_, exists := re.config.Rules[ruleName]
-	if !exists {
+	_, rExists := re.config.Rules[ruleName]
+	if !rExists {
 		return RuleResult{}, fmt.Errorf("rule '%s' not found", ruleName)
 	}
 
-	program, exists := re.programs[ruleName]
-	if !exists {
+	program, pExists := re.programs[ruleName]
+	if !pExists {
 		return RuleResult{}, fmt.Errorf("compiled program for rule '%s' not found", ruleName)
 	}
 
@@ -90,19 +144,27 @@ func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 		passed = boolVal
 	}
 
+	// handle custom error messages
+	var customError error
+	if !passed {
+		if msg, ok := re.config.ErrorHandling.CustomErrorMessages[ruleName]; ok {
+			customError = errors.New(msg)
+		}
+	}
 	return RuleResult{
 		RuleName: ruleName,
 		Passed:   passed,
-		Value:    value,
+		Error:    customError,
 		Duration: time.Since(start),
 	}, nil
 }
 
+// EvaluateRuleset evaluates a ruleset by name, handling rule inheritance and combination logic
 func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error) {
 	start := time.Now()
 
-	ruleset, exists := re.config.Rulesets[rulesetName]
-	if !exists {
+	ruleset, rOk := re.config.Rulesets[rulesetName]
+	if !rOk {
 		return RulesetResult{}, fmt.Errorf("ruleset '%s' not found", rulesetName)
 	}
 
@@ -114,8 +176,8 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 	// Handle rule inheritance
 	var allRules []string
 	if ruleset.Extends != "" {
-		baseRuleset, exists := re.config.Rulesets[ruleset.Extends]
-		if exists {
+		baseRuleset, bRuleOk := re.config.Rulesets[ruleset.Extends]
+		if bRuleOk {
 			allRules = append(allRules, baseRuleset.Rules...)
 		}
 	}
@@ -136,8 +198,8 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 	if ruleset.CustomRules != nil {
 		for customRuleName := range ruleset.CustomRules {
 			fullName := fmt.Sprintf("%s.%s", rulesetName, customRuleName)
-			program, exists := re.programs[fullName]
-			if !exists {
+			program, pOk := re.programs[fullName]
+			if !pOk {
 				continue
 			}
 
@@ -161,7 +223,6 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 			result.RuleResults[customRuleName] = RuleResult{
 				RuleName: customRuleName,
 				Passed:   passed,
-				Value:    value,
 				Duration: time.Since(start),
 			}
 		}
@@ -169,16 +230,18 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 
 	// Evaluate based on combination type
 	switch ruleset.CombinationType {
-	case "AND":
+	case combinationTypeAnd:
 		result.Passed = true
 		for _, ruleResult := range result.RuleResults {
 			if !ruleResult.Passed {
 				result.Passed = false
-				break
+				if re.policy.StopOnFailure {
+					break
+				}
 			}
 		}
 
-	case "OR":
+	case combinationTypeOr:
 		result.Passed = false
 		for _, ruleResult := range result.RuleResults {
 			if ruleResult.Passed {
@@ -193,15 +256,26 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		for _, ruleResult := range result.RuleResults {
 			if !ruleResult.Passed {
 				result.Passed = false
-				break
+				if re.policy.StopOnFailure {
+					break
+				}
 			}
 		}
 	}
 
+	var customError error
+	if !result.Passed {
+		if msg, ok := re.config.ErrorHandling.CustomErrorMessages[rulesetName]; ok {
+			customError = errors.New(msg)
+		}
+	}
+
 	result.Duration = time.Since(start)
+	result.Error = customError
 	return result, nil
 }
 
+// EvaluateAllRulesets evaluates all rulesets defined in the configuration
 func (re *RuleEngine) EvaluateAllRulesets(ctx context.Context) (map[string]RulesetResult, error) {
 	results := make(map[string]RulesetResult)
 
@@ -222,6 +296,7 @@ func (re *RuleEngine) EvaluateAllRulesets(ctx context.Context) (map[string]Rules
 	return results, nil
 }
 
+// compileRules parses, checks and compiles all rule expressions into `cel.Program`
 func (re *RuleEngine) compileRules() error {
 	// Compile individual rules
 	for name, rule := range re.config.Rules {
