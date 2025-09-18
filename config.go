@@ -33,7 +33,6 @@ type Ruleset struct {
 	CustomRules     map[string]Rule `yaml:"custom_rules"`
 	Expression      string          `yaml:"expression"`
 	Extends         string          `yaml:"extends"`
-	AdditionalRules []string        `yaml:"additional_rules"`
 }
 
 type Metadata struct {

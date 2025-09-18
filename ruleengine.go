@@ -42,6 +42,7 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEn
 	return engine, nil
 }
 
+// SetContext sets the evaluation context for the rule engine, TODO: rename
 func (re *RuleEngine) SetContext(ctx map[string]interface{}) {
 	re.context = ctx
 	// Always include globals in context
@@ -119,7 +120,6 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		}
 	}
 	allRules = append(allRules, ruleset.Rules...)
-	allRules = append(allRules, ruleset.AdditionalRules...)
 
 	// Evaluate individual rules
 	for _, ruleRef := range allRules {

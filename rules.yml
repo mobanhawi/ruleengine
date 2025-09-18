@@ -48,7 +48,7 @@ rulesets:
     combination_type: "AND"
     rules:
       - age_validation
-#      - email_format
+      - email_format
       - user_status
 
 # Rule execution policies
