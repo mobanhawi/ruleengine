@@ -68,10 +68,10 @@ execution_policies:
 error_handling:
   execution_policy: "collect_all"
   custom_error_messages:
-    age_validation: "User must be at least 18 years old"
-    email_format: "Please provide a valid email address"
-    domain_whitelist: "Email domain is not allowed"
-    business_hours: "Service only available during business hours (9 AM - 5 PM)"
+    age_validation: "user must be at least 18 years old"
+    email_format: "please provide a valid email address"
+    domain_whitelist: "email domain is not allowed"
+    business_hours: "service only available during business hours (9 AM - 5 PM)"
 
 globals:
   min_age: 13 # Lower age requirement for testing
