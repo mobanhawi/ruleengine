@@ -1,7 +1,7 @@
 package ruleengine
 
 import (
-	"reflect"
+	"errors"
 	"testing"
 	"time"
 
@@ -57,62 +57,144 @@ func setupEnvironment() func(*testing.T) *cel.Env {
 	}
 }
 
-// Create rule engine
-//engine, err := NewRuleEngine("rules.yml", "development", env)
-//if err != nil {
-//	t.Fatalf("failed to create rules engine: %v", err)
-//}
-
-//// Set up test context data
-//testContext := map[string]interface{}{
-//	"user": map[string]interface{}{
-//		"age":       25,
-//		"email":     "test@example.com",
-//		"status":    "active",
-//		"suspended": false,
-//	},
-//	"request": map[string]interface{}{
-//		"time":    time.Now().Format(time.RFC3339),
-//		"attempt": 2,
-//	},
-//}
-//engine.SetContext(testContext)
+func compareRuleResults(a, b RuleResult) bool {
+	if a.RuleName != b.RuleName {
+		return false
+	}
+	if a.Passed != b.Passed {
+		return false
+	}
+	if (a.Error == nil) != (b.Error == nil) {
+		return false
+	}
+	if a.Error != nil {
+		if a.Error.Error() != b.Error.Error() {
+			return false
+		}
+	}
+	// We don't compare Duration as it can vary
+	return true
+}
 
 func TestRuleEngine_EvaluateRule(t *testing.T) {
-	type fields struct {
-		config   *RulesetConfig
-		env      *cel.Env
-		programs map[string]cel.Program
-		policy   Policy
-		context  map[string]interface{}
-	}
 	type args struct {
 		ruleName string
+		context  map[string]interface{}
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    RuleResult
-		wantErr bool
+		name       string
+		ruleengine func(*testing.T) *RuleEngine
+		args       args
+		want       RuleResult
+		wantErr    bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "success - age_validation - dev",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "age_validation",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "age_validation",
+				Passed:   true,
+				Error:    nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "fail - age_validation - prod",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("rules.yml", "production", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "age_validation",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "age_validation",
+				Passed:   false,
+				Error:    errors.New("user must be at least 18 years old"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "fail - age_validation - prod - missing name",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("rules.yml", "production", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "height_validation",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "age_validation",
+				Passed:   false,
+				Error:    errors.New("rule 'height_validation' not found"),
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			re := &RuleEngine{
-				config:   tt.fields.config,
-				env:      tt.fields.env,
-				programs: tt.fields.programs,
-				policy:   tt.fields.policy,
-				context:  tt.fields.context,
-			}
+			re := tt.ruleengine(t)
+			re.SetContext(tt.args.context)
 			got, err := re.EvaluateRule(tt.args.ruleName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("EvaluateRule() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+			if !compareRuleResults(got, tt.want) {
 				t.Errorf("EvaluateRule() got = %v, want %v", got, tt.want)
 			}
 		})
