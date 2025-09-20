@@ -92,7 +92,7 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			name: "success - age_validation - dev",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("rules.yml", "development", env)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -124,7 +124,7 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			name: "fail - age_validation - prod",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("rules.yml", "production", env)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "production", env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -156,7 +156,7 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			name: "fail - age_validation - prod - missing name",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("rules.yml", "production", env)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "production", env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
