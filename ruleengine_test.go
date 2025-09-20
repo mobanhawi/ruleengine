@@ -177,12 +177,8 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 					},
 				},
 			},
-			want: RuleResult{
-				RuleName: "age_validation",
-				Passed:   false,
-				Error:    errors.New("rule 'height_validation' not found"),
-			},
-			wantErr: false,
+			want:    RuleResult{},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
