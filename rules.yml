@@ -50,6 +50,14 @@ rulesets:
       - age_validation
       - email_format
       - user_status
+  # Simple OR combination - at least one rule must pass
+  request_throttling:
+    name: "Request Throttling Check"
+    description: "At least one rule must pass to allow request"
+    combination_type: "OR"
+    rules:
+      - rate_limiting
+      - business_hours
 
 # Rule execution policies
 execution_policies:
