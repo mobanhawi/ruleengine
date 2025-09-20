@@ -33,48 +33,19 @@ type Policy struct {
 
 // NewRuleEngine creates a new ruleengine instance
 func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEngine, error) {
-	config, err := loadConfig(configPath)
+	config, err := NewRulesetConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Apply environment-specific overrides
-	if envConfig, exists := config.Environments[environment]; exists {
-		// Apply environment-specific globals
-		if envConfig.Globals != nil {
-			for k, v := range envConfig.Globals {
-				config.Globals[k] = v
-			}
-		}
-		// Apply environment-specific error handling execution policy
-		if envConfig.ErrorHandling.ExecutionPolicy != "" {
-			config.ErrorHandling.ExecutionPolicy = envConfig.ErrorHandling.ExecutionPolicy
-		}
-		// Apply environment-specific custom error messages
-		if envConfig.ErrorHandling.CustomErrorMessages != nil {
-			for k, v := range envConfig.ErrorHandling.CustomErrorMessages {
-				config.ErrorHandling.CustomErrorMessages[k] = v
-			}
-		}
+	configErr := config.ApplyEnvironment(environment)
+	if configErr != nil {
+		return nil, fmt.Errorf("failed to apply environment overwrites: %w", configErr)
 	}
 
-	// Set up defaults execution policy
-	policy := Policy{
-		StopOnFailure:    true,
-		MaxExecutionTime: 5 * time.Second,
-	}
-
-	if configPolicy, ok := config.ExecutionPolicies[config.ErrorHandling.ExecutionPolicy]; ok {
-		if configPolicy.MaxExecutionTime != "" {
-			dur, err := time.ParseDuration(configPolicy.MaxExecutionTime)
-			if err != nil {
-				return nil, fmt.Errorf("invalid max_execution_time in execution policy: %w", err)
-			}
-			policy.MaxExecutionTime = dur
-		}
-		policy.StopOnFailure = configPolicy.StopOnFailure
-	} else {
-		return nil, fmt.Errorf("execution policy '%s' not found in config", config.ErrorHandling.ExecutionPolicy)
+	policy, err := config.GetExecutionPolicy()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get execution policy: %w", err)
 	}
 
 	engine := &RuleEngine{
