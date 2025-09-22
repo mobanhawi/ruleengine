@@ -63,9 +63,8 @@ type ErrorHandling struct {
 
 // Environment defines settings for different execution environments
 type Environment struct {
-	Globals         map[string]interface{} `yaml:"globals"`
-	ExecutionPolicy string                 `yaml:"execution_policy"`
-	ErrorHandling   ErrorHandling          `yaml:"error_handling"`
+	Globals       map[string]interface{} `yaml:"globals"`
+	ErrorHandling ErrorHandling          `yaml:"error_handling"`
 }
 
 // NewRulesetConfig reads and parses the YAML configuration file
@@ -86,7 +85,7 @@ func NewRulesetConfig(configPath string) (*RulesetConfig, error) {
 }
 
 // ApplyEnvironment applies environment-specific overrides to the configuration
-func (rc *RulesetConfig) ApplyEnvironment(environment string) error {
+func (rc *RulesetConfig) ApplyEnvironment(environment string) {
 	// Apply environment-specific overrides
 	if envConfig, exists := rc.Environments[environment]; exists {
 		// Apply environment-specific globals
@@ -106,7 +105,6 @@ func (rc *RulesetConfig) ApplyEnvironment(environment string) error {
 			}
 		}
 	}
-	return nil
 }
 
 // GetExecutionPolicy retrieves the execution policy based on the current configuration
