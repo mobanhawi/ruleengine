@@ -9,6 +9,8 @@ import (
 	"github.com/google/cel-go/common/overloads"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 // setupEnvironment cel.Env helper
@@ -55,25 +57,6 @@ func setupEnvironment() func(*testing.T) *cel.Env {
 		}
 		return env
 	}
-}
-
-func compareRuleResults(a, b RuleResult) bool {
-	if a.RuleName != b.RuleName {
-		return false
-	}
-	if a.Passed != b.Passed {
-		return false
-	}
-	if (a.Error == nil) != (b.Error == nil) {
-		return false
-	}
-	if a.Error != nil {
-		if a.Error.Error() != b.Error.Error() {
-			return false
-		}
-	}
-	// We don't compare Duration as it can vary
-	return true
 }
 
 func TestRuleEngine_EvaluateRule(t *testing.T) {
@@ -190,8 +173,79 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 				t.Errorf("EvaluateRule() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !compareRuleResults(got, tt.want) {
-				t.Errorf("EvaluateRule() got = %v, want %v", got, tt.want)
+			diff := cmp.Diff(got, tt.want,
+				cmpopts.IgnoreFields(RuleResult{}, "Duration"),
+				cmp.Comparer(func(x, y error) bool {
+					return (x == nil && y == nil) || x.Error() == y.Error()
+				}),
+			)
+			if diff != "" {
+				t.Errorf("EvaluateRule() (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestNewRuleEngine(t *testing.T) {
+	type args struct {
+		configPath  string
+		environment string
+		envProvider func(*testing.T) *cel.Env
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "fail - bad path",
+			args: args{
+				configPath:  "test.yml",
+				envProvider: setupEnvironment(),
+			},
+			wantErr: true,
+		},
+		{
+			name: "fail - bad cel env",
+			args: args{
+				configPath: "./testdata/rules.yml",
+				envProvider: func(t *testing.T) *cel.Env {
+					return nil
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "fail - bad policy",
+			args: args{
+				configPath:  "./testdata/bad_policy.yml",
+				envProvider: setupEnvironment(),
+			},
+			wantErr: true,
+		},
+		{
+			name: "fail - bad rules",
+			args: args{
+				configPath:  "./testdata/bad_rules.yml",
+				envProvider: setupEnvironment(),
+			},
+			wantErr: true,
+		},
+		{
+			name: "fail - bad rules",
+			args: args{
+				configPath:  "./testdata/rules.yml",
+				envProvider: setupEnvironment(),
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewRuleEngine(tt.args.configPath, tt.args.environment, tt.args.envProvider(t))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewRuleEngine() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
 		})
 	}

@@ -1,0 +1,29 @@
+# nonk8s
+# CEL (Common Expression Language) Rulesets Configuration
+# This file demonstrates various ways to combine and organize CEL rules
+
+apiVersion: v1
+kind: RulesetConfig
+metadata:
+  name: cel-rulesets-example
+  description: "Examples of CEL rule combinations and patterns"
+
+# Individual rule definitions
+rules:
+  # Basic validation rules
+  age_validation:
+    name: "Age Validation"
+    description: "Validates user age requirements"
+    expression: "user.age >= globals.min_age"
+
+# Rule execution policies
+execution_policies:
+  fail_fast:
+    name: "Fail Fast Execution"
+    description: "Stop execution on first rule failure"
+    stop_on_failure: true
+    max_execution_time: "1ns"
+
+# Error handling and logging
+error_handling:
+  execution_policy: "unknown"

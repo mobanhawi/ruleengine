@@ -94,4 +94,4 @@ environments:
     globals:
       min_age: 18
     error_handling:
-      default_policy: "fail_fast"
+      execution_policy: "fail_fast"

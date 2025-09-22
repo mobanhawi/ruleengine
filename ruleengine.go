@@ -38,14 +38,15 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEn
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	configErr := config.ApplyEnvironment(environment)
-	if configErr != nil {
-		return nil, fmt.Errorf("failed to apply environment overwrites: %w", configErr)
-	}
+	config.ApplyEnvironment(environment)
 
 	policy, err := config.GetExecutionPolicy()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get execution policy: %w", err)
+	}
+
+	if env == nil {
+		return nil, fmt.Errorf("cel env is nil")
 	}
 
 	engine := &RuleEngine{
