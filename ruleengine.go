@@ -139,11 +139,6 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		return RulesetResult{}, fmt.Errorf("ruleset '%s' not found", rulesetName)
 	}
 
-	result := RulesetResult{
-		RulesetName: rulesetName,
-		RuleResults: make(map[string]RuleResult),
-	}
-
 	// Handle rule inheritance
 	var allRules []string
 	if ruleset.Extends != "" {
@@ -152,7 +147,23 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 			allRules = append(allRules, baseRuleset.Rules...)
 		}
 	}
+
+	// Handle custom rules
+	if ruleset.CustomRules != nil {
+		for customRuleName := range ruleset.CustomRules {
+			fullName := fmt.Sprintf("%s.%s", rulesetName, customRuleName)
+			_, pOk := re.programs[fullName]
+			if pOk {
+				allRules = append(allRules, fullName)
+			}
+		}
+	}
+
 	allRules = append(allRules, ruleset.Rules...)
+	result := RulesetResult{
+		RulesetName: rulesetName,
+		RuleResults: make(map[string]RuleResult, len(allRules)),
+	}
 
 	// Evaluate individual rules
 	for _, ruleRef := range allRules {
@@ -162,41 +173,14 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 			result.Duration = time.Since(start)
 			return result, nil
 		}
-		result.RuleResults[ruleRef] = ruleResult
-	}
-
-	// Evaluate custom rules within the ruleset
-	if ruleset.CustomRules != nil {
-		for customRuleName := range ruleset.CustomRules {
-			fullName := fmt.Sprintf("%s.%s", rulesetName, customRuleName)
-			program, pOk := re.programs[fullName]
-			if !pOk {
-				continue
-			}
-
-			out, _, err := program.Eval(re.context)
-			if err != nil {
-				result.RuleResults[customRuleName] = RuleResult{
-					RuleName: customRuleName,
-					Passed:   false,
-					Error:    err,
-					Duration: time.Since(start),
-				}
-				continue
-			}
-
-			value := out.Value()
-			passed := false
-			if boolVal, ok := value.(bool); ok {
-				passed = boolVal
-			}
-
-			result.RuleResults[customRuleName] = RuleResult{
-				RuleName: customRuleName,
-				Passed:   passed,
-				Duration: time.Since(start),
-			}
+		// fail-fast policy
+		if ruleset.CombinationType != combinationTypeOr && !ruleResult.Passed && re.policy.StopOnFailure {
+			result.RuleResults[ruleRef] = ruleResult
+			result.Passed = false
+			result.Duration = time.Since(start)
+			return result, nil
 		}
+		result.RuleResults[ruleRef] = ruleResult
 	}
 
 	// Evaluate based on combination type
@@ -206,9 +190,7 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		for _, ruleResult := range result.RuleResults {
 			if !ruleResult.Passed {
 				result.Passed = false
-				if re.policy.StopOnFailure {
-					break
-				}
+				break
 			}
 		}
 
@@ -227,9 +209,6 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		for _, ruleResult := range result.RuleResults {
 			if !ruleResult.Passed {
 				result.Passed = false
-				if re.policy.StopOnFailure {
-					break
-				}
 			}
 		}
 	}

@@ -1,6 +1,6 @@
 # nonk8s
 # CEL (Common Expression Language) Rulesets Configuration
-# This file demonstrates various ways to combine and organize CEL rules
+# This file demonstrates a bad execution policy in error handling
 
 apiVersion: v1
 kind: RulesetConfig
@@ -26,4 +26,4 @@ execution_policies:
 
 # Error handling and logging
 error_handling:
-  execution_policy: "unknown"
+  execution_policy: "unknown" # Invalid execution policy reference that does not exist

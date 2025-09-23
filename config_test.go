@@ -47,7 +47,8 @@ func TestNewRulesetConfig(t *testing.T) {
 					Description: "Examples of CEL rule combinations and patterns",
 				},
 				Globals: map[string]interface{}{
-					"min_age": 13,
+					"min_age":     13,
+					"max_retries": 5,
 				},
 				Rules: map[string]Rule{
 					"age_validation": {
@@ -68,12 +69,17 @@ func TestNewRulesetConfig(t *testing.T) {
 					"rate_limiting": {
 						Name:        "Rate Limiting",
 						Description: "Checks request rate limits",
-						Expression:  "request.attempt_count <= globals.max_retries",
+						Expression:  "request.attempt <= globals.max_retries",
 					},
 					"user_status": {
 						Name:        "User Status Check",
 						Description: "Validates user account status",
 						Expression:  "user.status == 'active' && !user.suspended",
+					},
+					"user_tier": {
+						Name:        "User Tier Check",
+						Description: "Validates user account tier",
+						Expression:  "user.tier == 'premium' || user.tier == 'enterprise'",
 					},
 				},
 
@@ -94,7 +100,7 @@ func TestNewRulesetConfig(t *testing.T) {
 						CombinationType: "OR",
 						Rules: []string{
 							"rate_limiting",
-							"business_hours",
+							"user_tier",
 						},
 					},
 				},
@@ -115,10 +121,11 @@ func TestNewRulesetConfig(t *testing.T) {
 				ErrorHandling: ErrorHandling{
 					ExecutionPolicy: "collect_all",
 					CustomErrorMessages: map[string]string{
-						"age_validation":   "user must be at least 18 years old",
-						"email_format":     "please provide a valid email address",
-						"domain_whitelist": "email domain is not allowed",
-						"business_hours":   "service only available during business hours (9 AM - 5 PM)",
+						"age_validation":     "user must be at least 18 years old",
+						"email_format":       "please provide a valid email address",
+						"domain_whitelist":   "email domain is not allowed",
+						"business_hours":     "service only available during business hours (9 AM - 5 PM)",
+						"request_throttling": "too many requests, please try again later",
 					},
 				},
 				Environments: map[string]Environment{
