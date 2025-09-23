@@ -1,6 +1,6 @@
 # nonk8s
 # CEL (Common Expression Language) Rulesets Configuration
-# This file demonstrates various ways to combine and organize CEL rules
+# This file demonstrates a bad expression in a CEL rule
 
 apiVersion: v1
 kind: RulesetConfig
@@ -14,7 +14,7 @@ rules:
   age_validation:
     name: "Age Validation"
     description: "Validates user age requirements"
-    expression: "this_is_a_bad_expression"
+    expression: "this_is_a_bad_expression" # Invalid CEL expression
 
 # Rule execution policies
 execution_policies:

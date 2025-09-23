@@ -93,11 +93,6 @@ environments:
 
 ## Usage
 
-To use the rule engine, load the configuration from `rules.yml`, set up the environment, and evaluate rules against input data `context`.
+To use the rule engine, load the configuration from `rules.yml`, set up the environment `cel.Env`, and evaluate rules against input data `context`.
 
 For more details, see the comments in `rules.yml` or consult the CEL documentation. 
-
-## TODO
-- Execution policy implementation
-- Unit tests coverage
-- Regex examples
