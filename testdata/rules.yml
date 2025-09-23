@@ -32,12 +32,17 @@ rules:
   rate_limiting:
     name: "Rate Limiting"
     description: "Checks request rate limits"
-    expression: "request.attempt_count <= globals.max_retries"
+    expression: "request.attempt <= globals.max_retries"
 
   user_status:
     name: "User Status Check"
     description: "Validates user account status"
     expression: "user.status == 'active' && !user.suspended"
+
+  user_tier:
+    name: "User Tier Check"
+    description: "Validates user account tier"
+    expression: "user.tier == 'premium' || user.tier == 'enterprise'"
 
 # Rule combinations and sets
 rulesets:
@@ -50,6 +55,14 @@ rulesets:
       - age_validation
       - email_format
       - user_status
+  # Simple OR combination - at least one rule must pass
+  request_throttling:
+    name: "Request Throttling Check"
+    description: "At least one rule must pass to allow request"
+    combination_type: "OR"
+    rules:
+      - rate_limiting
+      - user_tier
 
 # Rule execution policies
 execution_policies:
@@ -68,13 +81,15 @@ execution_policies:
 error_handling:
   execution_policy: "collect_all"
   custom_error_messages:
-    age_validation: "User must be at least 18 years old"
-    email_format: "Please provide a valid email address"
-    domain_whitelist: "Email domain is not allowed"
-    business_hours: "Service only available during business hours (9 AM - 5 PM)"
+    age_validation: "user must be at least 18 years old"
+    email_format: "please provide a valid email address"
+    domain_whitelist: "email domain is not allowed"
+    business_hours: "service only available during business hours (9 AM - 5 PM)"
+    request_throttling: "too many requests, please try again later"
 
 globals:
   min_age: 13 # Lower age requirement for testing
+  max_retries: 5
 
 # Environment-specific overrides
 environments:
@@ -86,4 +101,4 @@ environments:
     globals:
       min_age: 18
     error_handling:
-      default_policy: "fail_fast"
+      execution_policy: "fail_fast"
