@@ -165,6 +165,7 @@ func BenchmarkRuleEngine_EvaluateAllRulesets(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(t *testing.B) {
 			re := tt.ruleengine(t)
+			t.ResetTimer()
 			re.SetContext(tt.args.context)
 			_, _ = re.EvaluateAllRulesets()
 		})
