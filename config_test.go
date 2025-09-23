@@ -47,8 +47,9 @@ func TestNewRulesetConfig(t *testing.T) {
 					Description: "Examples of CEL rule combinations and patterns",
 				},
 				Globals: map[string]interface{}{
-					"min_age":     13,
-					"max_retries": 5,
+					"min_age":         13,
+					"max_retries":     5,
+					"allowed_domains": []any{"example.com", "test.org"},
 				},
 				Rules: map[string]Rule{
 					"age_validation": {
@@ -102,6 +103,12 @@ func TestNewRulesetConfig(t *testing.T) {
 							"rate_limiting",
 							"user_tier",
 						},
+					},
+					"domain_whitelist": {
+						Name:        "Domain Whitelist Check",
+						Description: "Validates if email domain is in the allowed list",
+						Expression:  "globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))\n",
+						Extends:     "email_format",
 					},
 				},
 				ExecutionPolicies: map[string]ExecutionPolicy{
@@ -579,7 +586,7 @@ func TestRulesetConfig_GetExecutionPolicy(t *testing.T) {
 				ExecutionPolicies: tt.fields.ExecutionPolicies,
 				ErrorHandling:     tt.fields.ErrorHandling,
 			}
-			got, err := rc.GetExecutionPolicy()
+			got, err := rc.ToExecutionPolicy()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetExecutionPolicy() error = %v, wantErr %v", err, tt.wantErr)
 				return

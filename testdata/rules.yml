@@ -63,6 +63,13 @@ rulesets:
     rules:
       - rate_limiting
       - user_tier
+  # Extensions logic
+  domain_whitelist:
+    name: "Domain Whitelist Check"
+    description: "Validates if email domain is in the allowed list"
+    extends: email_format
+    expression: |
+      globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))
 
 # Rule execution policies
 execution_policies:
@@ -90,6 +97,9 @@ error_handling:
 globals:
   min_age: 13 # Lower age requirement for testing
   max_retries: 5
+  allowed_domains:
+    - "example.com"
+    - "test.org"
 
 # Environment-specific overrides
 environments:

@@ -40,7 +40,7 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEn
 
 	config.ApplyEnvironment(environment)
 
-	policy, err := config.GetExecutionPolicy()
+	policy, err := config.ToExecutionPolicy()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get execution policy: %w", err)
 	}
@@ -142,9 +142,9 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 	// Handle rule inheritance
 	var allRules []string
 	if ruleset.Extends != "" {
-		baseRuleset, bRuleOk := re.config.Rulesets[ruleset.Extends]
+		_, bRuleOk := re.config.Rules[ruleset.Extends]
 		if bRuleOk {
-			allRules = append(allRules, baseRuleset.Rules...)
+			allRules = append(allRules, ruleset.Extends)
 		}
 	}
 
@@ -159,6 +159,16 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		}
 	}
 
+	// Handle main ruleset expression
+	if ruleset.Expression != "" {
+		exprRuleName := fmt.Sprintf("ruleset.%s", rulesetName)
+		_, pOk := re.programs[exprRuleName]
+		if pOk {
+			allRules = append(allRules, exprRuleName)
+		}
+	}
+
+	// Add explicitly listed rules
 	allRules = append(allRules, ruleset.Rules...)
 	result := RulesetResult{
 		RulesetName: rulesetName,
@@ -280,7 +290,10 @@ func (re *RuleEngine) compileRules() error {
 				if err != nil {
 					return fmt.Errorf("failed to create program for custom rule '%s': %w", fullName, err)
 				}
-
+				re.config.Rules[fullName] = Rule{
+					Name:       fullName,
+					Expression: customRule.Expression,
+				}
 				re.programs[fullName] = program
 			}
 		}
@@ -296,8 +309,12 @@ func (re *RuleEngine) compileRules() error {
 			if err != nil {
 				return fmt.Errorf("failed to create program for ruleset '%s': %w", rulesetName, err)
 			}
-
-			re.programs[fmt.Sprintf("ruleset.%s", rulesetName)] = program
+			fullName := fmt.Sprintf("ruleset.%s", rulesetName)
+			re.config.Rules[fullName] = Rule{
+				Name:       fullName,
+				Expression: ruleset.Expression,
+			}
+			re.programs[fullName] = program
 		}
 	}
 
