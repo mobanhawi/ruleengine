@@ -253,6 +253,147 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "success - extension logic - dev",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				rulesetName: "domain_whitelist",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+						"tier":      "free",
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RulesetResult{
+				RulesetName: "domain_whitelist",
+				Passed:      true,
+				RuleResults: map[string]RuleResult{
+					"email_format": {
+						RuleName: "email_format",
+						Passed:   true,
+						Error:    nil,
+						Duration: 0,
+					},
+					"ruleset.domain_whitelist": {
+						RuleName: "ruleset.domain_whitelist",
+						Passed:   true,
+						Duration: 0,
+					},
+				},
+				Error:    nil,
+				Duration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "fail - extension logic - fail main rule - dev",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				rulesetName: "domain_whitelist",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test.example.com",
+						"status":    "active",
+						"suspended": false,
+						"tier":      "free",
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RulesetResult{
+				RulesetName: "domain_whitelist",
+				Passed:      false,
+				RuleResults: map[string]RuleResult{
+					"email_format": {
+						RuleName: "email_format",
+						Passed:   false,
+						Error:    errors.New("please provide a valid email address"),
+						Duration: 0,
+					},
+					"ruleset.domain_whitelist": {
+						RuleName: "ruleset.domain_whitelist",
+						Passed:   false,
+						Duration: 0,
+					},
+				},
+				Error:    errors.New("email domain is not allowed"),
+				Duration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "fail - extension logic - fail expression - dev",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				rulesetName: "domain_whitelist",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@badexample.com",
+						"status":    "active",
+						"suspended": false,
+						"tier":      "free",
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RulesetResult{
+				RulesetName: "domain_whitelist",
+				Passed:      false,
+				RuleResults: map[string]RuleResult{
+					"email_format": {
+						RuleName: "email_format",
+						Passed:   true,
+						Error:    nil,
+						Duration: 0,
+					},
+					"ruleset.domain_whitelist": {
+						RuleName: "ruleset.domain_whitelist",
+						Passed:   false,
+						Duration: 0,
+					},
+				},
+				Error:    errors.New("email domain is not allowed"),
+				Duration: 0,
+			},
+			wantErr: false,
+		},
+		{
 			name: "fail(collect_all) - user_registration(AND) - age_validation - dev",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
@@ -628,6 +769,25 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 					Error:    nil,
 					Duration: 0,
 				},
+				"domain_whitelist": {
+					RulesetName: "domain_whitelist",
+					Passed:      true,
+					RuleResults: map[string]RuleResult{
+						"email_format": {
+							RuleName: "email_format",
+							Passed:   true,
+							Error:    nil,
+							Duration: 0,
+						},
+						"ruleset.domain_whitelist": {
+							RuleName: "ruleset.domain_whitelist",
+							Passed:   true,
+							Duration: 0,
+						},
+					},
+					Error:    nil,
+					Duration: 0,
+				},
 			},
 			wantErr: false,
 		},
@@ -731,6 +891,25 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 					Error:    nil,
 					Duration: 0,
 				},
+				"domain_whitelist": {
+					RulesetName: "domain_whitelist",
+					Passed:      true,
+					RuleResults: map[string]RuleResult{
+						"email_format": {
+							RuleName: "email_format",
+							Passed:   true,
+							Error:    nil,
+							Duration: 0,
+						},
+						"ruleset.domain_whitelist": {
+							RuleName: "ruleset.domain_whitelist",
+							Passed:   true,
+							Duration: 0,
+						},
+					},
+					Error:    nil,
+					Duration: 0,
+				},
 			},
 			wantErr: false,
 		},
@@ -804,7 +983,7 @@ func TestNewRuleEngine(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "fail - bad rules",
+			name: "success",
 			args: args{
 				configPath:  "./testdata/rules.yml",
 				envProvider: setupEnvironment(),

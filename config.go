@@ -107,8 +107,8 @@ func (rc *RulesetConfig) ApplyEnvironment(environment string) {
 	}
 }
 
-// GetExecutionPolicy retrieves the execution policy based on the current configuration
-func (rc *RulesetConfig) GetExecutionPolicy() (Policy, error) {
+// ToExecutionPolicy maps the execution policy from on the current configuration
+func (rc *RulesetConfig) ToExecutionPolicy() (Policy, error) {
 	// Set up defaults execution policy
 	policy := Policy{
 		StopOnFailure:    true,
