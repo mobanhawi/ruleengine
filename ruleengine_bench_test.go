@@ -215,7 +215,7 @@ func BenchmarkRuleEngineOptimise_EvaluateAllRulesets(b *testing.B) {
 			name: "success",
 			ruleengine: func(t *testing.B) *RuleEngine {
 				env := setupBenchmarkEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules_bench.yml", "development", env, WithOptimise(true))
+				engine, err := NewRuleEngine("./testdata/rules_bench.yml", "development", env, WithOptimise())
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -338,7 +338,7 @@ func BenchmarkNewRuleEngineOptimise(t *testing.B) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.B) {
-			_, err := NewRuleEngine(tt.args.configPath, tt.args.environment, tt.args.envProvider(t), WithOptimise(true))
+			_, err := NewRuleEngine(tt.args.configPath, tt.args.environment, tt.args.envProvider(t), WithOptimise())
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRuleEngine() error = %v, wantErr %v", err, tt.wantErr)
 				return

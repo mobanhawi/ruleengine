@@ -82,6 +82,18 @@ func TestNewRulesetConfig(t *testing.T) {
 						Description: "Validates user account tier",
 						Expression:  "user.tier == 'premium' || user.tier == 'enterprise'",
 					},
+					"email_whitelist": {
+						Name:        "Domain Whitelist Check",
+						Description: "Validates if email domain is in the allowed list",
+						Expression:  "globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))\n",
+						Extends:     "email_format",
+					},
+					"test_user": {
+						Name:        "Test user Check",
+						Description: "Checks if email is from test accounts",
+						Expression:  "user.email.startsWith('test')",
+						Extends:     "email_whitelist",
+					},
 				},
 
 				Rulesets: map[string]Ruleset{
@@ -106,9 +118,10 @@ func TestNewRulesetConfig(t *testing.T) {
 					},
 					"domain_whitelist": {
 						Name:        "Domain Whitelist Check",
-						Description: "Validates if email domain is in the allowed list",
-						Expression:  "globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))\n",
-						Extends:     "email_format",
+						Description: "Validates if request domain is in the allowed list",
+						Rules: []string{
+							"email_whitelist",
+						},
 					},
 				},
 				ExecutionPolicies: map[string]ExecutionPolicy{
