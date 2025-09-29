@@ -153,6 +153,10 @@ func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 }
 
 // EvaluateRuleset evaluates a ruleset by name, handling rule inheritance and selector logic
+//
+//		Errors are returned if the rule is not found
+//		If the rule evaluates to false, a RuleResult with Passed=false is returned and nil error
+//	    If the rule evaluates to true, a RuleResult with Passed=true is returned and nil error
 func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error) {
 	start := time.Now()
 
@@ -263,10 +267,10 @@ func (re *RuleEngine) EvaluateAllRulesets() (map[string]RulesetResult, error) {
 		}
 
 		result, err := re.EvaluateRuleset(rulesetName)
+		results[rulesetName] = result
 		if err != nil {
 			return results, err
 		}
-		results[rulesetName] = result
 	}
 
 	return results, nil
