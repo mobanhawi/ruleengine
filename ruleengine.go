@@ -102,13 +102,11 @@ func (re *RuleEngine) SetContext(ctx map[string]interface{}) {
 }
 
 // EvaluateRule evaluates a single rule `cel.Program` by name
+//
+//	Errors are returned if the rule is not found or if there is an issue during evaluation
+//	If the rule evaluates to false, a RuleResult with Passed=false is returned and nil error
 func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 	start := time.Now()
-
-	_, rExists := re.config.Rules[ruleName]
-	if !rExists {
-		return RuleResult{}, fmt.Errorf("rule '%s' not found", ruleName)
-	}
 
 	program, pExists := re.programs[ruleName]
 	if !pExists {
@@ -117,6 +115,12 @@ func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 
 	out, _, err := program.Eval(re.context)
 	if err != nil {
+		// An unsuccessful evaluation is typically the result of a series of incompatible `EnvOption`
+		// or `ProgramOption` values used in the creation of the evaluation environment or executable
+		// program.
+		// We don't want to overwrite CEL evaluation errors with custom error messages
+		// Instead, we return a failed RuleResult with the error.
+		// The caller can decide how to handle it based on the policy.
 		return RuleResult{
 			RuleName: ruleName,
 			Passed:   false,
@@ -196,19 +200,11 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 	// Evaluate individual rules
 	for _, ruleRef := range allRules {
 		ruleResult, err := re.EvaluateRule(ruleRef)
-		if err != nil {
-			result.Error = err
-			result.Duration = time.Since(start)
-			return result, nil
-		}
-		// fail-fast policy
-		if ruleset.Selector != selectorOr && !ruleResult.Passed && re.policy.StopOnFailure {
-			result.RuleResults[ruleRef] = ruleResult
-			result.Passed = false
-			result.Duration = time.Since(start)
-			return result, nil
-		}
 		result.RuleResults[ruleRef] = ruleResult
+		// fail-fast policy
+		if ruleset.Selector != selectorOr && (!ruleResult.Passed || err != nil) && re.policy.StopOnFailure {
+			break
+		}
 	}
 
 	// Evaluate based on selector type

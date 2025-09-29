@@ -569,7 +569,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 						Duration: 0,
 					},
 				},
-				Error:    nil,
+				Error:    errors.New("ruleset 'user_registration' did not pass evaluation"),
 				Duration: 0,
 			},
 			wantErr: false,
