@@ -2539,7 +2539,7 @@ rulesets:
     domain_whitelist:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2548,7 +2548,7 @@ rulesets:
     domain_whitelist_0:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2557,7 +2557,7 @@ rulesets:
     domain_whitelist_1:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2566,7 +2566,7 @@ rulesets:
     domain_whitelist_2:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2575,7 +2575,7 @@ rulesets:
     domain_whitelist_3:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2584,7 +2584,7 @@ rulesets:
     domain_whitelist_4:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2593,7 +2593,7 @@ rulesets:
     domain_whitelist_5:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2602,7 +2602,7 @@ rulesets:
     domain_whitelist_6:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2611,7 +2611,7 @@ rulesets:
     domain_whitelist_7:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2620,7 +2620,7 @@ rulesets:
     domain_whitelist_8:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2629,7 +2629,7 @@ rulesets:
     domain_whitelist_9:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2638,7 +2638,7 @@ rulesets:
     domain_whitelist_10:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2647,7 +2647,7 @@ rulesets:
     domain_whitelist_11:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2656,7 +2656,7 @@ rulesets:
     domain_whitelist_12:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2665,7 +2665,7 @@ rulesets:
     domain_whitelist_13:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2674,7 +2674,7 @@ rulesets:
     domain_whitelist_14:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2683,7 +2683,7 @@ rulesets:
     domain_whitelist_15:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2692,7 +2692,7 @@ rulesets:
     domain_whitelist_16:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2701,7 +2701,7 @@ rulesets:
     domain_whitelist_17:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2710,7 +2710,7 @@ rulesets:
     domain_whitelist_18:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2719,7 +2719,7 @@ rulesets:
     domain_whitelist_19:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2728,7 +2728,7 @@ rulesets:
     domain_whitelist_20:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2737,7 +2737,7 @@ rulesets:
     domain_whitelist_21:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2746,7 +2746,7 @@ rulesets:
     domain_whitelist_22:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2755,7 +2755,7 @@ rulesets:
     domain_whitelist_23:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2764,7 +2764,7 @@ rulesets:
     domain_whitelist_24:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2773,7 +2773,7 @@ rulesets:
     domain_whitelist_25:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2782,7 +2782,7 @@ rulesets:
     domain_whitelist_26:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2791,7 +2791,7 @@ rulesets:
     domain_whitelist_27:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2800,7 +2800,7 @@ rulesets:
     domain_whitelist_28:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2809,7 +2809,7 @@ rulesets:
     domain_whitelist_29:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2818,7 +2818,7 @@ rulesets:
     domain_whitelist_30:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2827,7 +2827,7 @@ rulesets:
     domain_whitelist_31:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2836,7 +2836,7 @@ rulesets:
     domain_whitelist_32:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2845,7 +2845,7 @@ rulesets:
     domain_whitelist_33:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2854,7 +2854,7 @@ rulesets:
     domain_whitelist_34:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2863,7 +2863,7 @@ rulesets:
     domain_whitelist_35:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2872,7 +2872,7 @@ rulesets:
     domain_whitelist_36:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2881,7 +2881,7 @@ rulesets:
     domain_whitelist_37:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2890,7 +2890,7 @@ rulesets:
     domain_whitelist_38:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2899,7 +2899,7 @@ rulesets:
     domain_whitelist_39:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2908,7 +2908,7 @@ rulesets:
     domain_whitelist_40:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2917,7 +2917,7 @@ rulesets:
     domain_whitelist_41:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2926,7 +2926,7 @@ rulesets:
     domain_whitelist_42:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2935,7 +2935,7 @@ rulesets:
     domain_whitelist_43:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2944,7 +2944,7 @@ rulesets:
     domain_whitelist_44:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2953,7 +2953,7 @@ rulesets:
     domain_whitelist_45:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2962,7 +2962,7 @@ rulesets:
     domain_whitelist_46:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2971,7 +2971,7 @@ rulesets:
     domain_whitelist_47:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2980,7 +2980,7 @@ rulesets:
     domain_whitelist_48:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2989,7 +2989,7 @@ rulesets:
     domain_whitelist_49:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -2998,7 +2998,7 @@ rulesets:
     domain_whitelist_50:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3007,7 +3007,7 @@ rulesets:
     domain_whitelist_51:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3016,7 +3016,7 @@ rulesets:
     domain_whitelist_52:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3025,7 +3025,7 @@ rulesets:
     domain_whitelist_53:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3034,7 +3034,7 @@ rulesets:
     domain_whitelist_54:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3043,7 +3043,7 @@ rulesets:
     domain_whitelist_55:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3052,7 +3052,7 @@ rulesets:
     domain_whitelist_56:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3061,7 +3061,7 @@ rulesets:
     domain_whitelist_57:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3070,7 +3070,7 @@ rulesets:
     domain_whitelist_58:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3079,7 +3079,7 @@ rulesets:
     domain_whitelist_59:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3088,7 +3088,7 @@ rulesets:
     domain_whitelist_60:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3097,7 +3097,7 @@ rulesets:
     domain_whitelist_61:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3106,7 +3106,7 @@ rulesets:
     domain_whitelist_62:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3115,7 +3115,7 @@ rulesets:
     domain_whitelist_63:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3124,7 +3124,7 @@ rulesets:
     domain_whitelist_64:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3133,7 +3133,7 @@ rulesets:
     domain_whitelist_65:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3142,7 +3142,7 @@ rulesets:
     domain_whitelist_66:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3151,7 +3151,7 @@ rulesets:
     domain_whitelist_67:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3160,7 +3160,7 @@ rulesets:
     domain_whitelist_68:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3169,7 +3169,7 @@ rulesets:
     domain_whitelist_69:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3178,7 +3178,7 @@ rulesets:
     domain_whitelist_70:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3187,7 +3187,7 @@ rulesets:
     domain_whitelist_71:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3196,7 +3196,7 @@ rulesets:
     domain_whitelist_72:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3205,7 +3205,7 @@ rulesets:
     domain_whitelist_73:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3214,7 +3214,7 @@ rulesets:
     domain_whitelist_74:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3223,7 +3223,7 @@ rulesets:
     domain_whitelist_75:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3232,7 +3232,7 @@ rulesets:
     domain_whitelist_76:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3241,7 +3241,7 @@ rulesets:
     domain_whitelist_77:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3250,7 +3250,7 @@ rulesets:
     domain_whitelist_78:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3259,7 +3259,7 @@ rulesets:
     domain_whitelist_79:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3268,7 +3268,7 @@ rulesets:
     domain_whitelist_80:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3277,7 +3277,7 @@ rulesets:
     domain_whitelist_81:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3286,7 +3286,7 @@ rulesets:
     domain_whitelist_82:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3295,7 +3295,7 @@ rulesets:
     domain_whitelist_83:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3304,7 +3304,7 @@ rulesets:
     domain_whitelist_84:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3313,7 +3313,7 @@ rulesets:
     domain_whitelist_85:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3322,7 +3322,7 @@ rulesets:
     domain_whitelist_86:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3331,7 +3331,7 @@ rulesets:
     domain_whitelist_87:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3340,7 +3340,7 @@ rulesets:
     domain_whitelist_88:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3349,7 +3349,7 @@ rulesets:
     domain_whitelist_89:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3358,7 +3358,7 @@ rulesets:
     domain_whitelist_90:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3367,7 +3367,7 @@ rulesets:
     domain_whitelist_91:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3376,7 +3376,7 @@ rulesets:
     domain_whitelist_92:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3385,7 +3385,7 @@ rulesets:
     domain_whitelist_93:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3394,7 +3394,7 @@ rulesets:
     domain_whitelist_94:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3403,7 +3403,7 @@ rulesets:
     domain_whitelist_95:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3412,7 +3412,7 @@ rulesets:
     domain_whitelist_96:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3421,7 +3421,7 @@ rulesets:
     domain_whitelist_97:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3430,7 +3430,7 @@ rulesets:
     domain_whitelist_98:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3439,7 +3439,7 @@ rulesets:
     domain_whitelist_99:
         name: Domain Whitelist Check
         description: Validates if email domain is in the allowed list
-        combination_type: ""
+        selector: ""
         rules: []
         custom_rules: {}
         expression: |
@@ -3448,7 +3448,7 @@ rulesets:
     request_throttling:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3458,7 +3458,7 @@ rulesets:
     request_throttling_0:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3468,7 +3468,7 @@ rulesets:
     request_throttling_1:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3478,7 +3478,7 @@ rulesets:
     request_throttling_2:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3488,7 +3488,7 @@ rulesets:
     request_throttling_3:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3498,7 +3498,7 @@ rulesets:
     request_throttling_4:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3508,7 +3508,7 @@ rulesets:
     request_throttling_5:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3518,7 +3518,7 @@ rulesets:
     request_throttling_6:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3528,7 +3528,7 @@ rulesets:
     request_throttling_7:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3538,7 +3538,7 @@ rulesets:
     request_throttling_8:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3548,7 +3548,7 @@ rulesets:
     request_throttling_9:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3558,7 +3558,7 @@ rulesets:
     request_throttling_10:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3568,7 +3568,7 @@ rulesets:
     request_throttling_11:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3578,7 +3578,7 @@ rulesets:
     request_throttling_12:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3588,7 +3588,7 @@ rulesets:
     request_throttling_13:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3598,7 +3598,7 @@ rulesets:
     request_throttling_14:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3608,7 +3608,7 @@ rulesets:
     request_throttling_15:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3618,7 +3618,7 @@ rulesets:
     request_throttling_16:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3628,7 +3628,7 @@ rulesets:
     request_throttling_17:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3638,7 +3638,7 @@ rulesets:
     request_throttling_18:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3648,7 +3648,7 @@ rulesets:
     request_throttling_19:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3658,7 +3658,7 @@ rulesets:
     request_throttling_20:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3668,7 +3668,7 @@ rulesets:
     request_throttling_21:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3678,7 +3678,7 @@ rulesets:
     request_throttling_22:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3688,7 +3688,7 @@ rulesets:
     request_throttling_23:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3698,7 +3698,7 @@ rulesets:
     request_throttling_24:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3708,7 +3708,7 @@ rulesets:
     request_throttling_25:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3718,7 +3718,7 @@ rulesets:
     request_throttling_26:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3728,7 +3728,7 @@ rulesets:
     request_throttling_27:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3738,7 +3738,7 @@ rulesets:
     request_throttling_28:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3748,7 +3748,7 @@ rulesets:
     request_throttling_29:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3758,7 +3758,7 @@ rulesets:
     request_throttling_30:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3768,7 +3768,7 @@ rulesets:
     request_throttling_31:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3778,7 +3778,7 @@ rulesets:
     request_throttling_32:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3788,7 +3788,7 @@ rulesets:
     request_throttling_33:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3798,7 +3798,7 @@ rulesets:
     request_throttling_34:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3808,7 +3808,7 @@ rulesets:
     request_throttling_35:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3818,7 +3818,7 @@ rulesets:
     request_throttling_36:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3828,7 +3828,7 @@ rulesets:
     request_throttling_37:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3838,7 +3838,7 @@ rulesets:
     request_throttling_38:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3848,7 +3848,7 @@ rulesets:
     request_throttling_39:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3858,7 +3858,7 @@ rulesets:
     request_throttling_40:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3868,7 +3868,7 @@ rulesets:
     request_throttling_41:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3878,7 +3878,7 @@ rulesets:
     request_throttling_42:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3888,7 +3888,7 @@ rulesets:
     request_throttling_43:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3898,7 +3898,7 @@ rulesets:
     request_throttling_44:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3908,7 +3908,7 @@ rulesets:
     request_throttling_45:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3918,7 +3918,7 @@ rulesets:
     request_throttling_46:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3928,7 +3928,7 @@ rulesets:
     request_throttling_47:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3938,7 +3938,7 @@ rulesets:
     request_throttling_48:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3948,7 +3948,7 @@ rulesets:
     request_throttling_49:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3958,7 +3958,7 @@ rulesets:
     request_throttling_50:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3968,7 +3968,7 @@ rulesets:
     request_throttling_51:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3978,7 +3978,7 @@ rulesets:
     request_throttling_52:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3988,7 +3988,7 @@ rulesets:
     request_throttling_53:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -3998,7 +3998,7 @@ rulesets:
     request_throttling_54:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4008,7 +4008,7 @@ rulesets:
     request_throttling_55:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4018,7 +4018,7 @@ rulesets:
     request_throttling_56:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4028,7 +4028,7 @@ rulesets:
     request_throttling_57:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4038,7 +4038,7 @@ rulesets:
     request_throttling_58:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4048,7 +4048,7 @@ rulesets:
     request_throttling_59:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4058,7 +4058,7 @@ rulesets:
     request_throttling_60:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4068,7 +4068,7 @@ rulesets:
     request_throttling_61:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4078,7 +4078,7 @@ rulesets:
     request_throttling_62:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4088,7 +4088,7 @@ rulesets:
     request_throttling_63:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4098,7 +4098,7 @@ rulesets:
     request_throttling_64:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4108,7 +4108,7 @@ rulesets:
     request_throttling_65:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4118,7 +4118,7 @@ rulesets:
     request_throttling_66:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4128,7 +4128,7 @@ rulesets:
     request_throttling_67:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4138,7 +4138,7 @@ rulesets:
     request_throttling_68:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4148,7 +4148,7 @@ rulesets:
     request_throttling_69:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4158,7 +4158,7 @@ rulesets:
     request_throttling_70:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4168,7 +4168,7 @@ rulesets:
     request_throttling_71:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4178,7 +4178,7 @@ rulesets:
     request_throttling_72:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4188,7 +4188,7 @@ rulesets:
     request_throttling_73:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4198,7 +4198,7 @@ rulesets:
     request_throttling_74:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4208,7 +4208,7 @@ rulesets:
     request_throttling_75:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4218,7 +4218,7 @@ rulesets:
     request_throttling_76:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4228,7 +4228,7 @@ rulesets:
     request_throttling_77:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4238,7 +4238,7 @@ rulesets:
     request_throttling_78:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4248,7 +4248,7 @@ rulesets:
     request_throttling_79:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4258,7 +4258,7 @@ rulesets:
     request_throttling_80:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4268,7 +4268,7 @@ rulesets:
     request_throttling_81:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4278,7 +4278,7 @@ rulesets:
     request_throttling_82:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4288,7 +4288,7 @@ rulesets:
     request_throttling_83:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4298,7 +4298,7 @@ rulesets:
     request_throttling_84:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4308,7 +4308,7 @@ rulesets:
     request_throttling_85:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4318,7 +4318,7 @@ rulesets:
     request_throttling_86:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4328,7 +4328,7 @@ rulesets:
     request_throttling_87:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4338,7 +4338,7 @@ rulesets:
     request_throttling_88:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4348,7 +4348,7 @@ rulesets:
     request_throttling_89:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4358,7 +4358,7 @@ rulesets:
     request_throttling_90:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4368,7 +4368,7 @@ rulesets:
     request_throttling_91:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4378,7 +4378,7 @@ rulesets:
     request_throttling_92:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4388,7 +4388,7 @@ rulesets:
     request_throttling_93:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4398,7 +4398,7 @@ rulesets:
     request_throttling_94:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4408,7 +4408,7 @@ rulesets:
     request_throttling_95:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4418,7 +4418,7 @@ rulesets:
     request_throttling_96:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4428,7 +4428,7 @@ rulesets:
     request_throttling_97:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4438,7 +4438,7 @@ rulesets:
     request_throttling_98:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4448,7 +4448,7 @@ rulesets:
     request_throttling_99:
         name: Request Throttling Check
         description: At least one rule must pass to allow request
-        combination_type: OR
+        selector: OR
         rules:
             - rate_limiting
             - user_tier
@@ -4458,7 +4458,7 @@ rulesets:
     user_registration:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4469,7 +4469,7 @@ rulesets:
     user_registration_0:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4480,7 +4480,7 @@ rulesets:
     user_registration_1:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4491,7 +4491,7 @@ rulesets:
     user_registration_2:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4502,7 +4502,7 @@ rulesets:
     user_registration_3:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4513,7 +4513,7 @@ rulesets:
     user_registration_4:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4524,7 +4524,7 @@ rulesets:
     user_registration_5:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4535,7 +4535,7 @@ rulesets:
     user_registration_6:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4546,7 +4546,7 @@ rulesets:
     user_registration_7:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4557,7 +4557,7 @@ rulesets:
     user_registration_8:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4568,7 +4568,7 @@ rulesets:
     user_registration_9:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4579,7 +4579,7 @@ rulesets:
     user_registration_10:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4590,7 +4590,7 @@ rulesets:
     user_registration_11:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4601,7 +4601,7 @@ rulesets:
     user_registration_12:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4612,7 +4612,7 @@ rulesets:
     user_registration_13:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4623,7 +4623,7 @@ rulesets:
     user_registration_14:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4634,7 +4634,7 @@ rulesets:
     user_registration_15:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4645,7 +4645,7 @@ rulesets:
     user_registration_16:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4656,7 +4656,7 @@ rulesets:
     user_registration_17:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4667,7 +4667,7 @@ rulesets:
     user_registration_18:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4678,7 +4678,7 @@ rulesets:
     user_registration_19:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4689,7 +4689,7 @@ rulesets:
     user_registration_20:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4700,7 +4700,7 @@ rulesets:
     user_registration_21:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4711,7 +4711,7 @@ rulesets:
     user_registration_22:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4722,7 +4722,7 @@ rulesets:
     user_registration_23:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4733,7 +4733,7 @@ rulesets:
     user_registration_24:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4744,7 +4744,7 @@ rulesets:
     user_registration_25:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4755,7 +4755,7 @@ rulesets:
     user_registration_26:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4766,7 +4766,7 @@ rulesets:
     user_registration_27:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4777,7 +4777,7 @@ rulesets:
     user_registration_28:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4788,7 +4788,7 @@ rulesets:
     user_registration_29:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4799,7 +4799,7 @@ rulesets:
     user_registration_30:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4810,7 +4810,7 @@ rulesets:
     user_registration_31:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4821,7 +4821,7 @@ rulesets:
     user_registration_32:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4832,7 +4832,7 @@ rulesets:
     user_registration_33:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4843,7 +4843,7 @@ rulesets:
     user_registration_34:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4854,7 +4854,7 @@ rulesets:
     user_registration_35:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4865,7 +4865,7 @@ rulesets:
     user_registration_36:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4876,7 +4876,7 @@ rulesets:
     user_registration_37:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4887,7 +4887,7 @@ rulesets:
     user_registration_38:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4898,7 +4898,7 @@ rulesets:
     user_registration_39:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4909,7 +4909,7 @@ rulesets:
     user_registration_40:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4920,7 +4920,7 @@ rulesets:
     user_registration_41:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4931,7 +4931,7 @@ rulesets:
     user_registration_42:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4942,7 +4942,7 @@ rulesets:
     user_registration_43:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4953,7 +4953,7 @@ rulesets:
     user_registration_44:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4964,7 +4964,7 @@ rulesets:
     user_registration_45:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4975,7 +4975,7 @@ rulesets:
     user_registration_46:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4986,7 +4986,7 @@ rulesets:
     user_registration_47:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -4997,7 +4997,7 @@ rulesets:
     user_registration_48:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5008,7 +5008,7 @@ rulesets:
     user_registration_49:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5019,7 +5019,7 @@ rulesets:
     user_registration_50:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5030,7 +5030,7 @@ rulesets:
     user_registration_51:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5041,7 +5041,7 @@ rulesets:
     user_registration_52:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5052,7 +5052,7 @@ rulesets:
     user_registration_53:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5063,7 +5063,7 @@ rulesets:
     user_registration_54:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5074,7 +5074,7 @@ rulesets:
     user_registration_55:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5085,7 +5085,7 @@ rulesets:
     user_registration_56:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5096,7 +5096,7 @@ rulesets:
     user_registration_57:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5107,7 +5107,7 @@ rulesets:
     user_registration_58:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5118,7 +5118,7 @@ rulesets:
     user_registration_59:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5129,7 +5129,7 @@ rulesets:
     user_registration_60:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5140,7 +5140,7 @@ rulesets:
     user_registration_61:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5151,7 +5151,7 @@ rulesets:
     user_registration_62:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5162,7 +5162,7 @@ rulesets:
     user_registration_63:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5173,7 +5173,7 @@ rulesets:
     user_registration_64:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5184,7 +5184,7 @@ rulesets:
     user_registration_65:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5195,7 +5195,7 @@ rulesets:
     user_registration_66:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5206,7 +5206,7 @@ rulesets:
     user_registration_67:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5217,7 +5217,7 @@ rulesets:
     user_registration_68:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5228,7 +5228,7 @@ rulesets:
     user_registration_69:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5239,7 +5239,7 @@ rulesets:
     user_registration_70:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5250,7 +5250,7 @@ rulesets:
     user_registration_71:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5261,7 +5261,7 @@ rulesets:
     user_registration_72:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5272,7 +5272,7 @@ rulesets:
     user_registration_73:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5283,7 +5283,7 @@ rulesets:
     user_registration_74:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5294,7 +5294,7 @@ rulesets:
     user_registration_75:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5305,7 +5305,7 @@ rulesets:
     user_registration_76:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5316,7 +5316,7 @@ rulesets:
     user_registration_77:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5327,7 +5327,7 @@ rulesets:
     user_registration_78:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5338,7 +5338,7 @@ rulesets:
     user_registration_79:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5349,7 +5349,7 @@ rulesets:
     user_registration_80:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5360,7 +5360,7 @@ rulesets:
     user_registration_81:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5371,7 +5371,7 @@ rulesets:
     user_registration_82:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5382,7 +5382,7 @@ rulesets:
     user_registration_83:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5393,7 +5393,7 @@ rulesets:
     user_registration_84:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5404,7 +5404,7 @@ rulesets:
     user_registration_85:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5415,7 +5415,7 @@ rulesets:
     user_registration_86:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5426,7 +5426,7 @@ rulesets:
     user_registration_87:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5437,7 +5437,7 @@ rulesets:
     user_registration_88:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5448,7 +5448,7 @@ rulesets:
     user_registration_89:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5459,7 +5459,7 @@ rulesets:
     user_registration_90:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5470,7 +5470,7 @@ rulesets:
     user_registration_91:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5481,7 +5481,7 @@ rulesets:
     user_registration_92:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5492,7 +5492,7 @@ rulesets:
     user_registration_93:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5503,7 +5503,7 @@ rulesets:
     user_registration_94:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5514,7 +5514,7 @@ rulesets:
     user_registration_95:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5525,7 +5525,7 @@ rulesets:
     user_registration_96:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5536,7 +5536,7 @@ rulesets:
     user_registration_97:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5547,7 +5547,7 @@ rulesets:
     user_registration_98:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format
@@ -5558,7 +5558,7 @@ rulesets:
     user_registration_99:
         name: User Registration Validation
         description: All rules must pass for successful registration
-        combination_type: AND
+        selector: AND
         rules:
             - age_validation
             - email_format

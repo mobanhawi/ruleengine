@@ -50,7 +50,7 @@ rulesets:
   user_registration:
     name: "User Registration Validation"
     description: "All rules must pass for successful registration"
-    combination_type: "AND"
+    selector: "AND"
     rules:
       - age_validation
       - email_format
@@ -59,7 +59,7 @@ rulesets:
   request_throttling:
     name: "Request Throttling Check"
     description: "At least one rule must pass to allow request"
-    combination_type: "OR"
+    selector: "OR"
     rules:
       - rate_limiting
       - user_tier

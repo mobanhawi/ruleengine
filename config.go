@@ -30,16 +30,16 @@ type Rule struct {
 
 // Ruleset represents a collection of rules and their evaluation logic
 type Ruleset struct {
-	Name            string                 `yaml:"name"`
-	Description     string                 `yaml:"description"`
-	CombinationType RulesetCombinationType `yaml:"combination_type"`
-	Rules           []string               `yaml:"rules"`
-	CustomRules     map[string]Rule        `yaml:"custom_rules"`
-	Expression      string                 `yaml:"expression"`
-	Extends         string                 `yaml:"extends"`
+	Name        string          `yaml:"name"`
+	Description string          `yaml:"description"`
+	Selector    selectorType    `yaml:"selector"`
+	Rules       []string        `yaml:"rules"`
+	CustomRules map[string]Rule `yaml:"custom_rules"`
+	Expression  string          `yaml:"expression"`
+	Extends     string          `yaml:"extends"`
 }
 
-type RulesetCombinationType string
+type selectorType string
 
 // Metadata contains basic information about the ruleset configuration
 type Metadata struct {

@@ -44,7 +44,7 @@ func TestNewRulesetConfig(t *testing.T) {
 				Kind:       "RulesetConfig",
 				Metadata: Metadata{
 					Name:        "cel-rulesets-example",
-					Description: "Examples of CEL rule combinations and patterns",
+					Description: "Examples of CEL rule selectors and patterns",
 				},
 				Globals: map[string]interface{}{
 					"min_age":         13,
@@ -86,9 +86,9 @@ func TestNewRulesetConfig(t *testing.T) {
 
 				Rulesets: map[string]Ruleset{
 					"user_registration": {
-						Name:            "User Registration Validation",
-						Description:     "All rules must pass for successful registration",
-						CombinationType: "AND",
+						Name:        "User Registration Validation",
+						Description: "All rules must pass for successful registration",
+						Selector:    "AND",
 						Rules: []string{
 							"age_validation",
 							"email_format",
@@ -96,9 +96,9 @@ func TestNewRulesetConfig(t *testing.T) {
 						},
 					},
 					"request_throttling": {
-						Name:            "Request Throttling Check",
-						Description:     "At least one rule must pass to allow request",
-						CombinationType: "OR",
+						Name:        "Request Throttling Check",
+						Description: "At least one rule must pass to allow request",
+						Selector:    "OR",
 						Rules: []string{
 							"rate_limiting",
 							"user_tier",

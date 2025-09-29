@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	// combinationTypeAnd is logical AND combination of rulesets
-	combinationTypeAnd RulesetCombinationType = "AND"
-	// combinationTypeOr is logical OR combination of rulesets
-	combinationTypeOr RulesetCombinationType = "OR"
+	// selectorAnd is logical AND combination of rulesets
+	selectorAnd selectorType = "AND"
+	// selectorOr is logical OR combination of rulesets
+	selectorOr selectorType = "OR"
 )
 
 // RuleEngine holds the configuration and compiled programs for rule evaluation
@@ -148,7 +148,7 @@ func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 	}, nil
 }
 
-// EvaluateRuleset evaluates a ruleset by name, handling rule inheritance and combination logic
+// EvaluateRuleset evaluates a ruleset by name, handling rule inheritance and selector logic
 func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error) {
 	start := time.Now()
 
@@ -202,7 +202,7 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 			return result, nil
 		}
 		// fail-fast policy
-		if ruleset.CombinationType != combinationTypeOr && !ruleResult.Passed && re.policy.StopOnFailure {
+		if ruleset.Selector != selectorOr && !ruleResult.Passed && re.policy.StopOnFailure {
 			result.RuleResults[ruleRef] = ruleResult
 			result.Passed = false
 			result.Duration = time.Since(start)
@@ -211,9 +211,9 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		result.RuleResults[ruleRef] = ruleResult
 	}
 
-	// Evaluate based on combination type
-	switch ruleset.CombinationType {
-	case combinationTypeAnd:
+	// Evaluate based on selector type
+	switch ruleset.Selector {
+	case selectorAnd:
 		result.Passed = true
 		for _, ruleResult := range result.RuleResults {
 			if !ruleResult.Passed {
@@ -222,7 +222,7 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 			}
 		}
 
-	case combinationTypeOr:
+	case selectorOr:
 		result.Passed = false
 		for _, ruleResult := range result.RuleResults {
 			if ruleResult.Passed {
