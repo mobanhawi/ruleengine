@@ -44,6 +44,14 @@ rules:
     description: "Validates user account tier"
     expression: "user.tier == 'premium' || user.tier == 'enterprise'"
 
+  # Extensions logic
+  email_whitelist:
+    name: "Domain Whitelist Check"
+    description: "Validates if email domain is in the allowed list"
+    extends: email_format
+    expression: |
+      globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))
+
 # Rule combinations and sets
 rulesets:
   # Simple AND combination - all rules must pass
@@ -66,10 +74,9 @@ rulesets:
   # Extensions logic
   domain_whitelist:
     name: "Domain Whitelist Check"
-    description: "Validates if email domain is in the allowed list"
-    extends: email_format
-    expression: |
-      globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))
+    description: "Validates if request domain is in the allowed list"
+    rules: # In the future this can combine multiple rules for different request fields
+      - email_whitelist
 
 # Rule execution policies
 execution_policies:

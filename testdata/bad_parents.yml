@@ -1,0 +1,29 @@
+# nonk8s
+# CEL (Common Expression Language) Rulesets Configuration
+# This file demonstrates a bad expression in a CEL rule
+
+apiVersion: v1
+kind: RulesetConfig
+metadata:
+  name: cel-rulesets-example
+  description: "Examples of CEL rule combinations and patterns"
+
+# Individual rule definitions
+rules:
+  user_tier:
+      name: "User Tier Check"
+      description: "Validates user account tier"
+      extends: user_status # 'user_status' rule does not exist, causing a bad parent reference
+      expression: "user.tier == 'premium' || user.tier == 'enterprise'"
+
+# Rule execution policies
+execution_policies:
+  fail_fast:
+    name: "Fail Fast Execution"
+    description: "Stop execution on first rule failure"
+    stop_on_failure: true
+    max_execution_time: "1ns"
+
+# Error handling and logging
+error_handling:
+  execution_policy: "fail_fast"
