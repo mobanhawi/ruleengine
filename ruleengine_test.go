@@ -133,10 +133,42 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "success - extension - 2 parents",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "test_user",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@test.org",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "test_user",
+				Passed:   true,
+				Error:    nil,
+			},
+			wantErr: false,
+		},
+		{
 			name: "success - age_validation - dev - optimise",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise(true))
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise())
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -288,6 +320,102 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "fail - extension - first parent fails",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "test_user",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@bad email",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "test_user",
+				Passed:   false,
+				Error:    errors.New("rule 'test_user' did not pass evaluation"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "fail - extension - 2 parents - other parent fails",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "test_user",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@gmail.com",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "test_user",
+				Passed:   false,
+				Error:    errors.New("rule 'test_user' did not pass evaluation"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "fail - extension - 2 parents - child fails",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "test_user",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "admin@test.org",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "test_user",
+				Passed:   false,
+				Error:    errors.New("rule 'test_user' did not pass evaluation"),
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -381,7 +509,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			name: "success - user_registration(AND) - dev - optimise",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise(true))
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise())
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -952,7 +1080,7 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 			name: "success - optimise",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise(true))
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise())
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -1261,7 +1389,7 @@ func TestNewRuleEngine(t *testing.T) {
 			args: args{
 				configPath:  "./testdata/rules.yml",
 				envProvider: setupEnvironment(),
-				opts:        []Option{WithOptimise(true)},
+				opts:        []Option{WithOptimise()},
 			},
 			wantErr: false,
 		},

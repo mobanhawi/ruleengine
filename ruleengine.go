@@ -44,9 +44,9 @@ type Policy struct {
 type Option func(*RuleEngine)
 
 // WithOptimise enables optimization for rule evaluation
-func WithOptimise(optimise bool) Option {
+func WithOptimise() Option {
 	return func(re *RuleEngine) {
-		re.optimise = optimise
+		re.optimise = true
 	}
 }
 

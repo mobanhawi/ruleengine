@@ -52,6 +52,12 @@ rules:
     expression: |
       globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))
 
+  test_user:
+    name: "Test user Check"
+    description: "Checks if email is from test accounts"
+    extends: email_whitelist
+    expression: "user.email.startsWith('test')"
+
 # Rule combinations and sets
 rulesets:
   # Simple AND combination - all rules must pass

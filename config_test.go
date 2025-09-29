@@ -88,6 +88,12 @@ func TestNewRulesetConfig(t *testing.T) {
 						Expression:  "globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))\n",
 						Extends:     "email_format",
 					},
+					"test_user": {
+						Name:        "Test user Check",
+						Description: "Checks if email is from test accounts",
+						Expression:  "user.email.startsWith('test')",
+						Extends:     "email_whitelist",
+					},
 				},
 
 				Rulesets: map[string]Ruleset{
