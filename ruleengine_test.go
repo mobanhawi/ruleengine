@@ -104,6 +104,38 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "success - age_validation - dev - optimise",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise(true))
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				ruleName: "age_validation",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RuleResult{
+				RuleName: "age_validation",
+				Passed:   true,
+				Error:    nil,
+			},
+			wantErr: false,
+		},
+		{
 			name: "fail - age_validation - prod",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
@@ -253,6 +285,60 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "success - user_registration(AND) - dev - optimise",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise(true))
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				rulesetName: "user_registration",
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+						"tier":      "free",
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: RulesetResult{
+				RulesetName: "user_registration",
+				Passed:      true,
+				RuleResults: map[string]RuleResult{
+					"age_validation": {
+						RuleName: "age_validation",
+						Passed:   true,
+						Error:    nil,
+						Duration: 0,
+					},
+					"email_format": {
+						RuleName: "email_format",
+						Passed:   true,
+						Error:    nil,
+						Duration: 0,
+					},
+					"user_status": {
+						RuleName: "user_status",
+						Passed:   true,
+						Error:    nil,
+						Duration: 0,
+					},
+				},
+				Error:    nil,
+				Duration: 0,
+			},
+			wantErr: false,
+		},
+		{
 			name: "success - extension logic - dev",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
@@ -338,6 +424,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 					"ruleset.domain_whitelist": {
 						RuleName: "ruleset.domain_whitelist",
 						Passed:   false,
+						Error:    errors.New("rule 'ruleset.domain_whitelist' did not pass evaluation"),
 						Duration: 0,
 					},
 				},
@@ -385,6 +472,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 					"ruleset.domain_whitelist": {
 						RuleName: "ruleset.domain_whitelist",
 						Passed:   false,
+						Error:    errors.New("rule 'ruleset.domain_whitelist' did not pass evaluation"),
 						Duration: 0,
 					},
 				},
@@ -442,7 +530,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 						Duration: 0,
 					},
 				},
-				Error:    nil,
+				Error:    errors.New("ruleset 'user_registration' did not pass evaluation"),
 				Duration: 0,
 			},
 			wantErr: false,
@@ -528,7 +616,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 					"user_tier": {
 						RuleName: "user_tier",
 						Passed:   false,
-						Error:    nil,
+						Error:    errors.New("rule 'user_tier' did not pass evaluation"),
 						Duration: 0,
 					},
 				},
@@ -570,7 +658,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 					"rate_limiting": {
 						RuleName: "rate_limiting",
 						Passed:   false,
-						Error:    nil,
+						Error:    errors.New("rule 'rate_limiting' did not pass evaluation"),
 						Duration: 0,
 					},
 					"user_tier": {
@@ -618,13 +706,13 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 					"rate_limiting": {
 						RuleName: "rate_limiting",
 						Passed:   false,
-						Error:    nil,
+						Error:    errors.New("rule 'rate_limiting' did not pass evaluation"),
 						Duration: 0,
 					},
 					"user_tier": {
 						RuleName: "user_tier",
 						Passed:   false,
-						Error:    nil,
+						Error:    errors.New("rule 'user_tier' did not pass evaluation"),
 						Duration: 0,
 					},
 				},
@@ -762,7 +850,101 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 						"user_tier": {
 							RuleName: "user_tier",
 							Passed:   false,
+							Error:    errors.New("rule 'user_tier' did not pass evaluation"),
+							Duration: 0,
+						},
+					},
+					Error:    nil,
+					Duration: 0,
+				},
+				"domain_whitelist": {
+					RulesetName: "domain_whitelist",
+					Passed:      true,
+					RuleResults: map[string]RuleResult{
+						"email_format": {
+							RuleName: "email_format",
+							Passed:   true,
 							Error:    nil,
+							Duration: 0,
+						},
+						"ruleset.domain_whitelist": {
+							RuleName: "ruleset.domain_whitelist",
+							Passed:   true,
+							Duration: 0,
+						},
+					},
+					Error:    nil,
+					Duration: 0,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "success - optimise",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise(true))
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				context: map[string]interface{}{
+					"user": map[string]interface{}{
+						"age":       15,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+						"tier":      "free",
+					},
+					"request": map[string]interface{}{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": 2,
+					},
+				},
+			},
+			want: map[string]RulesetResult{
+				"user_registration": {
+					RulesetName: "user_registration",
+					Passed:      true,
+					RuleResults: map[string]RuleResult{
+						"age_validation": {
+							RuleName: "age_validation",
+							Passed:   true,
+							Error:    nil,
+							Duration: 0,
+						},
+						"email_format": {
+							RuleName: "email_format",
+							Passed:   true,
+							Error:    nil,
+							Duration: 0,
+						},
+						"user_status": {
+							RuleName: "user_status",
+							Passed:   true,
+							Error:    nil,
+							Duration: 0,
+						},
+					},
+					Error:    nil,
+					Duration: 0,
+				},
+				"request_throttling": {
+					RulesetName: "request_throttling",
+					Passed:      true,
+					RuleResults: map[string]RuleResult{
+						"rate_limiting": {
+							RuleName: "rate_limiting",
+							Passed:   true,
+							Error:    nil,
+							Duration: 0,
+						},
+						"user_tier": {
+							RuleName: "user_tier",
+							Passed:   false,
+							Error:    errors.New("rule 'user_tier' did not pass evaluation"),
 							Duration: 0,
 						},
 					},
@@ -868,7 +1050,7 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 							Duration: 0,
 						},
 					},
-					Error:    nil,
+					Error:    errors.New("ruleset 'user_registration' did not pass evaluation"),
 					Duration: 0,
 				},
 				"request_throttling": {
@@ -884,7 +1066,7 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 						"user_tier": {
 							RuleName: "user_tier",
 							Passed:   false,
-							Error:    nil,
+							Error:    errors.New("rule 'user_tier' did not pass evaluation"),
 							Duration: 0,
 						},
 					},
@@ -942,6 +1124,7 @@ func TestNewRuleEngine(t *testing.T) {
 		configPath  string
 		environment string
 		envProvider func(*testing.T) *cel.Env
+		opts        []Option
 	}
 	tests := []struct {
 		name    string
@@ -990,10 +1173,19 @@ func TestNewRuleEngine(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "success - with options",
+			args: args{
+				configPath:  "./testdata/rules.yml",
+				envProvider: setupEnvironment(),
+				opts:        []Option{WithOptimise(true)},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewRuleEngine(tt.args.configPath, tt.args.environment, tt.args.envProvider(t))
+			_, err := NewRuleEngine(tt.args.configPath, tt.args.environment, tt.args.envProvider(t), tt.args.opts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRuleEngine() error = %v, wantErr %v", err, tt.wantErr)
 				return

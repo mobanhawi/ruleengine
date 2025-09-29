@@ -24,6 +24,7 @@ type RuleEngine struct {
 	programs map[string]cel.Program
 	policy   Policy
 	context  map[string]interface{}
+	optimise bool
 }
 
 type Policy struct {
@@ -31,8 +32,18 @@ type Policy struct {
 	MaxExecutionTime time.Duration
 }
 
+// Option defines a function that configures a RuleEngine
+type Option func(*RuleEngine)
+
+// WithOptimise enables optimization for rule evaluation
+func WithOptimise(optimise bool) Option {
+	return func(re *RuleEngine) {
+		re.optimise = optimise
+	}
+}
+
 // NewRuleEngine creates a new ruleengine instance
-func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEngine, error) {
+func NewRuleEngine(configPath string, environment string, env *cel.Env, opts ...Option) (*RuleEngine, error) {
 	config, err := NewRulesetConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -55,6 +66,12 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env) (*RuleEn
 		policy:   policy,
 		programs: make(map[string]cel.Program),
 		context:  make(map[string]interface{}),
+		optimise: false,
+	}
+
+	// Apply all provided options
+	for _, opt := range opts {
+		opt(engine)
 	}
 
 	// Pre-compile all rule expressions into `cel.Program`
@@ -116,16 +133,17 @@ func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 	}
 
 	// handle custom error messages
-	var customError error
+	var errorMessage error
 	if !passed {
+		errorMessage = fmt.Errorf("rule '%s' did not pass evaluation", ruleName)
 		if msg, ok := re.config.ErrorHandling.CustomErrorMessages[ruleName]; ok {
-			customError = errors.New(msg)
+			errorMessage = errors.New(msg)
 		}
 	}
 	return RuleResult{
 		RuleName: ruleName,
 		Passed:   passed,
-		Error:    customError,
+		Error:    errorMessage,
 		Duration: time.Since(start),
 	}, nil
 }
@@ -223,15 +241,16 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 		}
 	}
 
-	var customError error
+	var errorMessage error
 	if !result.Passed {
+		errorMessage = fmt.Errorf("ruleset '%s' did not pass evaluation", rulesetName)
 		if msg, ok := re.config.ErrorHandling.CustomErrorMessages[rulesetName]; ok {
-			customError = errors.New(msg)
+			errorMessage = errors.New(msg)
 		}
 	}
 
 	result.Duration = time.Since(start)
-	result.Error = customError
+	result.Error = errorMessage
 	return result, nil
 }
 
@@ -261,16 +280,10 @@ func (re *RuleEngine) EvaluateAllRulesets() (map[string]RulesetResult, error) {
 func (re *RuleEngine) compileRules() error {
 	// Compile individual rules
 	for name, rule := range re.config.Rules {
-		ast, issues := re.env.Compile(rule.Expression)
-		if issues != nil && issues.Err() != nil {
-			return fmt.Errorf("failed to compile rule '%s': %w", name, issues.Err())
-		}
-
-		program, err := re.env.Program(ast)
+		program, err := re.compileExpression(rule.Expression)
 		if err != nil {
-			return fmt.Errorf("failed to create program for rule '%s': %w", name, err)
+			return fmt.Errorf("failed to compile program for rule '%s': %w", name, err)
 		}
-
 		re.programs[name] = program
 	}
 
@@ -281,15 +294,11 @@ func (re *RuleEngine) compileRules() error {
 			for customRuleName, customRule := range ruleset.CustomRules {
 				fullName := fmt.Sprintf("%s.%s", rulesetName, customRuleName)
 
-				ast, issues := re.env.Compile(customRule.Expression)
-				if issues != nil && issues.Err() != nil {
-					return fmt.Errorf("failed to compile custom rule '%s': %w", fullName, issues.Err())
+				program, err := re.compileExpression(customRule.Expression)
+				if err != nil {
+					return fmt.Errorf("failed to compile program for ruleset '%s': %w", fullName, err)
 				}
 
-				program, err := re.env.Program(ast)
-				if err != nil {
-					return fmt.Errorf("failed to create program for custom rule '%s': %w", fullName, err)
-				}
 				re.config.Rules[fullName] = Rule{
 					Name:       fullName,
 					Expression: customRule.Expression,
@@ -300,14 +309,9 @@ func (re *RuleEngine) compileRules() error {
 
 		// Compile main ruleset expression if present
 		if ruleset.Expression != "" {
-			ast, issues := re.env.Compile(ruleset.Expression)
-			if issues != nil && issues.Err() != nil {
-				return fmt.Errorf("failed to compile ruleset expression '%s': %w", rulesetName, issues.Err())
-			}
-
-			program, err := re.env.Program(ast)
+			program, err := re.compileExpression(ruleset.Expression)
 			if err != nil {
-				return fmt.Errorf("failed to create program for ruleset '%s': %w", rulesetName, err)
+				return fmt.Errorf("failed to compile program for ruleset '%s': %w", ruleset.Name, err)
 			}
 			fullName := fmt.Sprintf("ruleset.%s", rulesetName)
 			re.config.Rules[fullName] = Rule{
@@ -319,4 +323,21 @@ func (re *RuleEngine) compileRules() error {
 	}
 
 	return nil
+}
+
+// func compileExpression
+func (re *RuleEngine) compileExpression(expression string) (cel.Program, error) {
+	ast, issues := re.env.Compile(expression)
+	if issues != nil && issues.Err() != nil {
+		return nil, fmt.Errorf("failed to compile expression '%s': %w", expression, issues.Err())
+	}
+	evalOpts := cel.OptExhaustiveEval
+	if re.optimise {
+		evalOpts = cel.OptOptimize
+	}
+	program, err := re.env.Program(ast, cel.EvalOptions(evalOpts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create program for expression '%s': %w", expression, err)
+	}
+	return program, nil
 }
