@@ -44,7 +44,7 @@ func TestNewRulesetConfig(t *testing.T) {
 				Kind:       "RulesetConfig",
 				Metadata: Metadata{
 					Name:        "cel-rulesets-example",
-					Description: "Examples of CEL rule selectors and patterns",
+					Description: "Examples of CEL rule combinations and patterns",
 				},
 				Globals: map[string]interface{}{
 					"min_age":         13,

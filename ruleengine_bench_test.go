@@ -21,10 +21,7 @@ func setupBenchmarkEnvironment() func(*testing.B) *cel.Env {
 		env, err := cel.NewEnv(
 			cel.Variable("user", cel.DynType),
 			cel.Variable("request", cel.DynType),
-			cel.Variable("payment", cel.DynType),
 			cel.Variable("globals", cel.DynType),
-			cel.Variable("rules", cel.DynType),
-			cel.Variable("rulesets", cel.DynType),
 			// Add custom functions
 			cel.Function("timestamp",
 				cel.Overload(overloads.StringToTimestamp, []*cel.Type{cel.StringType}, cel.TimestampType,
