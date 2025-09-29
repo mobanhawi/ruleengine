@@ -96,3 +96,14 @@ environments:
 To use the rule engine, load the configuration from `rules.yml`, set up the environment `cel.Env`, and evaluate rules against input data `context`.
 
 For more details, see the comments in `rules.yml` or consult the CEL documentation. 
+
+## Performance
+
+Using approximately 600 rules and 300 rulesets
+
+    BenchmarkRuleEngine_EvaluateAllRulesets (evals)
+    BenchmarkRuleEngine_EvaluateAllRulesets/success
+    BenchmarkRuleEngine_EvaluateAllRulesets/success-8               1000000000               0.001116 ns/op
+    BenchmarkNewRuleEngine (compiling rules)
+    BenchmarkNewRuleEngine/success
+    BenchmarkNewRuleEngine/success-8                                1000000000               0.03390 ns/op
