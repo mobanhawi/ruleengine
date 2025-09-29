@@ -154,7 +154,7 @@ func (re *RuleEngine) EvaluateRule(ruleName string) (RuleResult, error) {
 
 // EvaluateRuleset evaluates a ruleset by name, handling rule inheritance and selector logic
 //
-//		Errors are returned if the rule is not found
+//		Errors are returned if the ruleset is not found
 //		If the rule evaluates to false, a RuleResult with Passed=false is returned and nil error
 //	    If the rule evaluates to true, a RuleResult with Passed=true is returned and nil error
 func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error) {
@@ -255,6 +255,12 @@ func (re *RuleEngine) EvaluateRuleset(rulesetName string) (RulesetResult, error)
 }
 
 // EvaluateAllRulesets evaluates all rulesets defined in the configuration
+// Returns a map of ruleset names to their evaluation results
+//
+//		Errors are returned if the ruleset is not found, or if there is a timeout,
+//		execution will be halted in these cases
+//		If the rule evaluates to false, a RuleResult with Passed=false is returned and nil error
+//	    If the rule evaluates to true, a RuleResult with Passed=true is returned and nil error
 func (re *RuleEngine) EvaluateAllRulesets() (map[string]RulesetResult, error) {
 	results := make(map[string]RulesetResult)
 	ticker := time.NewTicker(re.policy.MaxExecutionTime)
@@ -268,6 +274,7 @@ func (re *RuleEngine) EvaluateAllRulesets() (map[string]RulesetResult, error) {
 
 		result, err := re.EvaluateRuleset(rulesetName)
 		results[rulesetName] = result
+		// This is only expected to happen if the ruleset name is missing
 		if err != nil {
 			return results, err
 		}
@@ -325,7 +332,7 @@ func (re *RuleEngine) compileRules() error {
 	return nil
 }
 
-// func compileExpression
+// func compileExpression parses, checks and compiles a single CEL expression into `cel.Program`
 func (re *RuleEngine) compileExpression(expression string) (cel.Program, error) {
 	ast, issues := re.env.Compile(expression)
 	if issues != nil && issues.Err() != nil {
