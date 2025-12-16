@@ -101,9 +101,15 @@ For more details, see the comments in `rules.yml` or consult the CEL documentati
 
 Using approximately 600 rules and 300 rulesets
 
-    BenchmarkRuleEngine_EvaluateAllRulesets (evals)
-    BenchmarkRuleEngine_EvaluateAllRulesets/success
-    BenchmarkRuleEngine_EvaluateAllRulesets/success-8               1000000000               0.001116 ns/op
-    BenchmarkNewRuleEngine (compiling rules)
-    BenchmarkNewRuleEngine/success
-    BenchmarkNewRuleEngine/success-8                                1000000000               0.03390 ns/op
+    goos: darwin
+    goarch: arm64
+    pkg: github.com/mobanhawi/ruleengine
+    cpu: Apple M1 Pro
+    BenchmarkRuleEngine_EvaluateAllRulesets
+    BenchmarkRuleEngine_EvaluateAllRulesets-8           	     601	   1902203 ns/op
+    BenchmarkNewRuleEngine
+    BenchmarkNewRuleEngine-8                            	      30	  39444917 ns/op
+    BenchmarkRuleEngineOptimise_EvaluateAllRulesets
+    BenchmarkRuleEngineOptimise_EvaluateAllRulesets-8   	    2580	    462594 ns/op
+    BenchmarkNewRuleEngineOptimise
+    BenchmarkNewRuleEngineOptimise-8                    	      28	  40634042 ns/op
