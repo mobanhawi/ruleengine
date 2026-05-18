@@ -5,9 +5,11 @@ go 1.24.0
 toolchain go1.24.7
 
 require (
-	github.com/google/cel-go v0.27.0
+	github.com/google/cel-go v0.28.1
 	github.com/google/go-cmp v0.7.0
 )
+
+require go.yaml.in/yaml/v3 v3.0.4 // indirect
 
 require (
 	cel.dev/expr v0.25.1 // indirect
