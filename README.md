@@ -1,18 +1,16 @@
 # CEL Rule Engine
 
-This repository contains a configurable rule engine using [CEL (Common Expression Language)](https://opensource.google/projects/cel) for flexible business logic and validation.
+A concurrency-safe, configurable rule engine in Go powered by [CEL (Common Expression Language)](https://opensource.google/projects/cel) with YAML configuration, programmatic rule management, and a built-in Model Context Protocol (MCP) server.
 
 ## Features
 
-- **YAML-based configuration** for rules, rulesets, execution policies, and environment overrides
-- **CEL expressions** for powerful, type-safe rule logic
-- **Customizable error handling and logging** 
-- **Environment-specific overrides** for development and production
+- **Stateless, Concurrency-Safe Evaluation**: Evaluate rules and rulesets safely across concurrent goroutines with `context.Context` cancellation and timeout propagation.
+- **YAML & Programmatic Configuration**: Load rules from YAML files, `io.Reader`, `[]byte`, or construct/mutate rules and rulesets dynamically at runtime.
+- **Rule Inheritance (`extends`)**: Compose hierarchical rules evaluated top-down from root ancestor to child with compile-time cycle detection.
+- **Rich Ruleset Combinators**: Combine rules using `AND`, `OR`, `NONE` (logical NOR), or `min_passed` ($N$-of-$M$ threshold) selectors.
+- **Model Context Protocol (MCP) Server**: Expose rule evaluation, expression validation, and runtime rule authoring to AI agents over JSON-RPC 2.0 stdio (`cmd/ruleengine-mcp`).
 
-## Example: Defining Rules
-
-Rules are defined in `rules.yml` under the `rules:` section.  
-Example:
+## Defining Rules & Rulesets in YAML
 
 ```yaml
 rules:
@@ -26,90 +24,94 @@ rules:
     description: "Validates email format using regex"
     expression: |
       user.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
-```
 
-## Example: Combining Rules
+  email_whitelist:
+    name: "Domain Whitelist Check"
+    extends: email_format
+    expression: |
+      globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))
 
-Rulesets allow you to combine multiple rules using logical operators:
-
-```yaml
 rulesets:
   user_registration:
     name: "User Registration Validation"
-    description: "All rules must pass for successful registration"
-    combination_type: "AND" # OR is allowed, default is AND
+    selector: "AND" # Supports AND (default), OR, NONE, or min_passed threshold
     rules:
       - age_validation
-      - email_format
-      - user_status
+      - email_whitelist
 ```
 
-## Execution Policies
+## Programmatic Usage
 
-Control how rules are executed:
+```go
+package main
 
-```yaml
-execution_policies:
-  fail_fast:
-    name: "Fail Fast Execution"
-    stop_on_failure: true
+import (
+	"context"
+	"fmt"
 
-  collect_all:
-    name: "Collect All Results"
-    stop_on_failure: false
-    collect_errors: true
+	"github.com/mobanhawi/ruleengine"
+)
+
+func main() {
+	env, err := ruleengine.NewDefaultEnv("user", "request")
+	if err != nil {
+		panic(err)
+	}
+
+	engine, err := ruleengine.NewRuleEngineFromConfig(&ruleengine.RulesetConfig{
+		Globals: map[string]any{"min_age": 18},
+	}, "production", env, ruleengine.WithOptimise())
+	if err != nil {
+		panic(err)
+	}
+
+	// Register rules and rulesets at runtime
+	_ = engine.UpsertRule("is_adult", ruleengine.Rule{
+		Name:       "Adult Check",
+		Expression: "user.age >= globals.min_age",
+	})
+	_ = engine.UpsertRuleset("onboarding", ruleengine.Ruleset{
+		Name:     "Onboarding",
+		Selector: ruleengine.SelectorAnd,
+		Rules:    []string{"is_adult"},
+	})
+
+	result, err := engine.EvaluateRuleset(context.Background(), "onboarding", map[string]any{
+		"user": map[string]any{"age": 21},
+	})
+	fmt.Printf("Passed: %v (err: %v)\n", result.Passed, err)
+}
 ```
 
-## Error Handling
+## MCP Server (`cmd/ruleengine-mcp`)
 
-Customize error handling and logging:
+Build and run the standalone MCP server over stdio:
 
-```yaml
-error_handling:
-  execution_policy: "collect_all"
-  custom_error_messages:
-    age_validation: "User must be at least 18 years old"
-    email_format: "Please provide a valid email address"
-    domain_whitelist: "Email domain is not allowed"
-    business_hours: "Service only available during business hours (9 AM - 5 PM)"
+```bash
+go build -o bin/ruleengine-mcp ./cmd/ruleengine-mcp
 ```
 
-## Environment Overrides
+Configure in `~/.gemini/config/mcp_config.json` (or Claude Desktop / Cursor MCP config):
 
-Override globals and policies per environment:
-
-```yaml
-environments:
-  development:
-    globals:
-      min_age: 13 # Lower age requirement for testing
-
-  production:
-    globals:
-      min_age: 18
-    error_handling:
-      default_policy: "fail_fast"
+```json
+{
+  "mcpServers": {
+    "ruleengine": {
+      "command": "/path/to/bin/ruleengine-mcp",
+      "args": ["-config", "/path/to/rules.yml", "-env", "development", "-vars", "user,request"]
+    }
+  }
+}
 ```
 
-## Usage
-
-To use the rule engine, load the configuration from `rules.yml`, set up the environment `cel.Env`, and evaluate rules against input data `context`.
-
-For more details, see the comments in `rules.yml` or consult the CEL documentation. 
-
-## Performance
-
-Using approximately 600 rules and 300 rulesets
-
-    goos: darwin
-    goarch: arm64
-    pkg: github.com/mobanhawi/ruleengine
-    cpu: Apple M1 Pro
-    BenchmarkRuleEngine_EvaluateAllRulesets
-    BenchmarkRuleEngine_EvaluateAllRulesets-8           	     601	   1902203 ns/op
-    BenchmarkNewRuleEngine
-    BenchmarkNewRuleEngine-8                            	      30	  39444917 ns/op
-    BenchmarkRuleEngineOptimise_EvaluateAllRulesets
-    BenchmarkRuleEngineOptimise_EvaluateAllRulesets-8   	    2580	    462594 ns/op
-    BenchmarkNewRuleEngineOptimise
-    BenchmarkNewRuleEngineOptimise-8                    	      28	  40634042 ns/op
+### Exposed MCP Tools
+| Tool | Description |
+|------|-------------|
+| `evaluate_rule` | Evaluate a single rule by `rule_name` against an `input` object |
+| `evaluate_ruleset` | Evaluate a ruleset by `ruleset_name` against an `input` object |
+| `evaluate_all_rulesets` | Evaluate all configured rulesets against an `input` object |
+| `validate_expression` | Compile and verify that a CEL `expression` returns `bool` |
+| `list_rules` | List all configured rules, expressions, and parent inheritance |
+| `list_rulesets` | List all configured rulesets and combinator selectors |
+| `upsert_rule` | Dynamically compile and register/update a rule at runtime |
+| `upsert_ruleset` | Dynamically register/update a ruleset at runtime |

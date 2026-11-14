@@ -1,78 +1,97 @@
 package ruleengine
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/overloads"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-// setupEnvironment cel.Env helper
+const (
+	testBadPolicyYAMLPath   = "./testdata/bad_policy.yml"
+	testBadRulesYAMLPath    = "./testdata/bad_rules.yml"
+	testBadParentsYAMLPath  = "./testdata/bad_parents.yml"
+	testBadCircularYAMLPath = "./testdata/bad_parent_circular.yml"
+
+	testUserAgeTeen    = 15
+	testUserAgeSixteen = 16
+	testUserAgeChild   = 10
+	testUserAgeFive    = 5
+	testAttemptLow     = 2
+	testAttemptHigh    = 25
+)
+
 func setupEnvironment() func(*testing.T) *cel.Env {
 	return func(t *testing.T) *cel.Env {
-		// Create CEL environment with standard functions and custom variables
-		// Most CEL applications will declare variables that can be referenced within expressions.
-		// Declarations of variables specify a name and a type.
-		// A variable's type may either be a CEL builtin type, a protocol buffer well-known type,
-		// or any protobuf message type so long as its descriptor is also provided to CEL
-		env, err := cel.NewEnv(
-			cel.Variable("user", cel.DynType),
-			cel.Variable("request", cel.DynType),
-			cel.Variable("globals", cel.DynType),
-			// Add custom functions
-			cel.Function("timestamp",
-				cel.Overload(overloads.StringToTimestamp, []*cel.Type{cel.StringType}, cel.TimestampType,
-					cel.UnaryBinding(func(val ref.Val) ref.Val {
-						str, ok := val.Value().(string)
-						if !ok {
-							return types.NewErr("timestamp() requires string input")
-						}
-						t, err := time.Parse(time.RFC3339, str)
-						if err != nil {
-							return types.NewErr("invalid timestamp format: %v", err)
-						}
-						return types.Timestamp{Time: t}
-					}),
-				),
-			),
-			cel.Function("now",
-				cel.Overload("now", []*cel.Type{}, cel.TimestampType,
-					cel.FunctionBinding(func(args ...ref.Val) ref.Val {
-						return types.Timestamp{Time: time.Now()}
-					}),
-				),
-			),
-		)
+		t.Helper()
+		env, err := NewDefaultEnv("user", "request")
 		if err != nil {
-			t.Fatalf("failed to create CEL environment: %v\n", err)
+			t.Fatalf("failed to create CEL environment: %v", err)
 		}
 		return env
 	}
 }
 
-func TestRuleEngine_EvaluateRule(t *testing.T) {
+func TestNewDefaultEnv(t *testing.T) {
+	tests := []struct {
+		name      string
+		variables []string
+		expr      string
+		wantErr   bool
+	}{
+		{
+			name:      "GivenCustomVariables_WhenNewDefaultEnv_ThenCompilesBuiltinFunctionsAndVariables",
+			variables: []string{"user", "request"},
+			expr:      "user.age >= globals.min_age && timestamp(request.time) <= now()",
+			wantErr:   false,
+		},
+		{
+			name:      "GivenUndeclaredVariableInExpression_WhenCompileWithDefaultEnv_ThenReturnsCompileError",
+			variables: []string{"user"},
+			expr:      "undeclared_var.field == 1",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env, err := NewDefaultEnv(tt.variables...)
+			if err != nil {
+				t.Fatalf("NewDefaultEnv() unexpected error = %v", err)
+			}
+			_, issues := env.Compile(tt.expr)
+			gotErr := issues != nil && issues.Err() != nil
+			if gotErr != tt.wantErr {
+				t.Errorf("env.Compile(%q) error = %v, wantErr %v", tt.expr, issues.Err(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestEvaluateRule(t *testing.T) {
 	type args struct {
 		ruleName string
-		context  map[string]interface{}
+		input    map[string]any
 	}
 	tests := []struct {
 		name       string
 		ruleengine func(*testing.T) *RuleEngine
+		ctx        func() (context.Context, context.CancelFunc)
 		args       args
 		want       RuleResult
 		wantErr    bool
 	}{
 		{
-			name: "success - age_validation - dev",
+			name: "GivenValidTeenUserInDev_WhenEvaluateAgeValidation_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -80,16 +99,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "age_validation",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -101,10 +120,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "success - extension",
+			name: "GivenWhitelistedEmail_WhenEvaluateRuleWithSingleParent_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -112,16 +131,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "email_whitelist",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -133,10 +152,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "success - extension - 2 parents",
+			name: "GivenValidTestUserEmail_WhenEvaluateRuleWithTwoParents_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -144,16 +163,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "test_user",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@test.org",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -165,10 +184,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "success - age_validation - dev - optimise",
+			name: "GivenOptimisedEngine_WhenEvaluateAgeValidation_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise())
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env, WithOptimise())
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -176,16 +195,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "age_validation",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -197,10 +216,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail - age_validation - prod",
+			name: "GivenTeenUserInProd_WhenEvaluateAgeValidation_ThenFailsWithCustomMessage",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "production", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envProduction, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -208,16 +227,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "age_validation",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -229,10 +248,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail - age_validation - prod - missing name",
+			name: "GivenNonExistentRuleName_WhenEvaluateRule_ThenReturnsError",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "production", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envProduction, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -240,27 +259,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "height_validation",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
-						"email":     "test@example.com",
-						"status":    "active",
-						"suspended": false,
-					},
-					"request": map[string]interface{}{
-						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
-					},
-				},
+				input:    map[string]any{},
 			},
 			want:    RuleResult{},
 			wantErr: true,
 		},
 		{
-			name: "fail - extension - parent",
+			name: "GivenMalformedEmail_WhenEvaluateRuleExtendingEmailFormat_ThenFailsParentCheck",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -268,16 +276,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "email_whitelist",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "not an email",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -289,10 +297,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail - extension - child",
+			name: "GivenDisallowedDomain_WhenEvaluateRuleExtendingEmailFormat_ThenFailsChildCheck",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -300,16 +308,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "email_whitelist",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "me@me.com",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -321,10 +329,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail - extension - first parent fails",
+			name: "GivenRootAncestorFailure_WhenEvaluateTwoParentRule_ThenFails",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -332,16 +340,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "test_user",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@bad email",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -353,10 +361,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail - extension - 2 parents - other parent fails",
+			name: "GivenImmediateParentFailure_WhenEvaluateTwoParentRule_ThenFails",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -364,16 +372,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "test_user",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@gmail.com",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -385,10 +393,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail - extension - 2 parents - child fails",
+			name: "GivenChildExpressionFailure_WhenEvaluateTwoParentRule_ThenFails",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -396,16 +404,16 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 			},
 			args: args{
 				ruleName: "test_user",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "admin@test.org",
 						"status":    "active",
 						"suspended": false,
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -415,13 +423,40 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 				Error:    errors.New("rule 'test_user' did not pass evaluation"),
 			},
 			wantErr: false,
+		},
+		{
+			name: "GivenCancelledContext_WhenEvaluateRule_ThenReturnsContextError",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				return engine
+			},
+			ctx: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx, func() {}
+			},
+			args: args{
+				ruleName: "age_validation",
+				input:    map[string]any{},
+			},
+			want:    RuleResult{},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			re := tt.ruleengine(t)
-			re.SetContext(tt.args.context)
-			got, err := re.EvaluateRule(tt.args.ruleName)
+			ctx := context.Background()
+			if tt.ctx != nil {
+				var cancel context.CancelFunc
+				ctx, cancel = tt.ctx()
+				defer cancel()
+			}
+			got, err := re.EvaluateRule(ctx, tt.args.ruleName, tt.args.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("EvaluateRule() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -439,10 +474,10 @@ func TestRuleEngine_EvaluateRule(t *testing.T) {
 	}
 }
 
-func TestRuleEngine_EvaluateRuleset(t *testing.T) {
+func TestEvaluateRuleset(t *testing.T) {
 	type args struct {
 		rulesetName string
-		context     map[string]interface{}
+		input       map[string]any
 	}
 	tests := []struct {
 		name       string
@@ -452,10 +487,10 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name: "success - user_registration(AND) - dev",
+			name: "GivenAllRulesPassing_WhenEvaluateAndRulesetInDev_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -463,17 +498,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "user_registration",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -481,35 +516,18 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 				RulesetName: "user_registration",
 				Passed:      true,
 				RuleResults: map[string]RuleResult{
-					"age_validation": {
-						RuleName: "age_validation",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
-					"email_format": {
-						RuleName: "email_format",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
-					"user_status": {
-						RuleName: "user_status",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
+					"age_validation": {RuleName: "age_validation", Passed: true},
+					"email_format":   {RuleName: "email_format", Passed: true},
+					"user_status":    {RuleName: "user_status", Passed: true},
 				},
-				Error:    nil,
-				Duration: 0,
 			},
 			wantErr: false,
 		},
 		{
-			name: "success - user_registration(AND) - dev - optimise",
+			name: "GivenOptimisedEngine_WhenEvaluateAndRulesetInDev_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise())
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env, WithOptimise())
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -517,17 +535,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "user_registration",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -535,35 +553,18 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 				RulesetName: "user_registration",
 				Passed:      true,
 				RuleResults: map[string]RuleResult{
-					"age_validation": {
-						RuleName: "age_validation",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
-					"email_format": {
-						RuleName: "email_format",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
-					"user_status": {
-						RuleName: "user_status",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
+					"age_validation": {RuleName: "age_validation", Passed: true},
+					"email_format":   {RuleName: "email_format", Passed: true},
+					"user_status":    {RuleName: "user_status", Passed: true},
 				},
-				Error:    nil,
-				Duration: 0,
 			},
 			wantErr: false,
 		},
 		{
-			name: "success - extension logic - dev",
+			name: "GivenExtendedRulePassing_WhenEvaluateDomainWhitelistRuleset_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -571,17 +572,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "domain_whitelist",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -589,22 +590,16 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 				RulesetName: "domain_whitelist",
 				Passed:      true,
 				RuleResults: map[string]RuleResult{
-					"email_whitelist": {
-						RuleName: "email_whitelist",
-						Passed:   true,
-						Duration: 0,
-					},
+					"email_whitelist": {RuleName: "email_whitelist", Passed: true},
 				},
-				Error:    nil,
-				Duration: 0,
 			},
 			wantErr: false,
 		},
 		{
-			name: "fail - extension logic - fail main rule - dev",
+			name: "GivenInvalidEmailFormat_WhenEvaluateDomainWhitelistRuleset_ThenFailsWithCustomRulesetMessage",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -612,17 +607,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "domain_whitelist",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeTeen,
 						"email":     "test.example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -634,61 +629,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 						RuleName: "email_whitelist",
 						Passed:   false,
 						Error:    errors.New("rule 'email_whitelist' did not pass evaluation"),
-						Duration: 0,
 					},
 				},
-				Error:    errors.New("email domain is not allowed"),
-				Duration: 0,
+				Error: errors.New("email domain is not allowed"),
 			},
 			wantErr: false,
 		},
 		{
-			name: "fail - extension logic - fail expression - dev",
+			name: "GivenUnderageUserAndCollectAllPolicy_WhenEvaluateUserRegistration_ThenEvaluatesAllRulesAndFails",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
-				if err != nil {
-					t.Fatalf("failed to create rules engine: %v", err)
-				}
-				return engine
-			},
-			args: args{
-				rulesetName: "domain_whitelist",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
-						"email":     "test@badexample.com",
-						"status":    "active",
-						"suspended": false,
-						"tier":      "free",
-					},
-					"request": map[string]interface{}{
-						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
-					},
-				},
-			},
-			want: RulesetResult{
-				RulesetName: "domain_whitelist",
-				Passed:      false,
-				RuleResults: map[string]RuleResult{
-					"email_whitelist": {
-						RuleName: "email_whitelist",
-						Passed:   false,
-						Error:    errors.New("rule 'email_whitelist' did not pass evaluation"),
-						Duration: 0,
-					},
-				},
-				Error:    errors.New("email domain is not allowed"),
-				Duration: 0,
-			},
-			wantErr: false,
-		},
-		{
-			name: "fail(collect_all) - user_registration(AND) - age_validation - dev",
-			ruleengine: func(t *testing.T) *RuleEngine {
-				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -696,17 +647,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "user_registration",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       10,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeChild,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -718,31 +669,19 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 						RuleName: "age_validation",
 						Passed:   false,
 						Error:    errors.New("user must be at least 18 years old"),
-						Duration: 0,
 					},
-					"email_format": {
-						RuleName: "email_format",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
-					"user_status": {
-						RuleName: "user_status",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
+					"email_format": {RuleName: "email_format", Passed: true},
+					"user_status":  {RuleName: "user_status", Passed: true},
 				},
-				Error:    errors.New("ruleset 'user_registration' did not pass evaluation"),
-				Duration: 0,
+				Error: errors.New("ruleset 'user_registration' did not pass evaluation"),
 			},
 			wantErr: false,
 		},
 		{
-			name: "fail(fast) - user_registration(AND) - age_validation - prod",
+			name: "GivenUnderageUserAndFailFastPolicy_WhenEvaluateUserRegistration_ThenStopsAtFirstFailedRule",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "production", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envProduction, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -750,17 +689,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "user_registration",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       16,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeSixteen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -772,19 +711,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 						RuleName: "age_validation",
 						Passed:   false,
 						Error:    errors.New("user must be at least 18 years old"),
-						Duration: 0,
 					},
 				},
-				Error:    errors.New("ruleset 'user_registration' did not pass evaluation"),
-				Duration: 0,
+				Error: errors.New("ruleset 'user_registration' did not pass evaluation"),
 			},
 			wantErr: false,
 		},
 		{
-			name: "success - request_throttling(OR) - rate_limiting - prod",
+			name: "GivenFirstRulePassesInOrRuleset_WhenEvaluateRequestThrottlingInProd_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "production", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envProduction, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -792,17 +729,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "request_throttling",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       16,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeSixteen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
+						"attempt": testAttemptLow,
 					},
 				},
 			},
@@ -810,29 +747,21 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 				RulesetName: "request_throttling",
 				Passed:      true,
 				RuleResults: map[string]RuleResult{
-					"rate_limiting": {
-						RuleName: "rate_limiting",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
+					"rate_limiting": {RuleName: "rate_limiting", Passed: true},
 					"user_tier": {
 						RuleName: "user_tier",
 						Passed:   false,
 						Error:    errors.New("rule 'user_tier' did not pass evaluation"),
-						Duration: 0,
 					},
 				},
-				Error:    nil,
-				Duration: 0,
 			},
 			wantErr: false,
 		},
 		{
-			name: "success - request_throttling(OR) - user_tier - dev",
+			name: "GivenSecondRulePassesInOrRuleset_WhenEvaluateRequestThrottlingInDev_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -840,17 +769,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "request_throttling",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       16,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeSixteen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "premium",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 25,
+						"attempt": testAttemptHigh,
 					},
 				},
 			},
@@ -862,25 +791,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 						RuleName: "rate_limiting",
 						Passed:   false,
 						Error:    errors.New("rule 'rate_limiting' did not pass evaluation"),
-						Duration: 0,
 					},
-					"user_tier": {
-						RuleName: "user_tier",
-						Passed:   true,
-						Error:    nil,
-						Duration: 0,
-					},
+					"user_tier": {RuleName: "user_tier", Passed: true},
 				},
-				Error:    nil,
-				Duration: 0,
 			},
 			wantErr: false,
 		},
 		{
-			name: "fail - request_throttling(OR) - dev",
+			name: "GivenAllRulesFailInOrRuleset_WhenEvaluateRequestThrottling_ThenFailsWithCustomMessage",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -888,17 +809,17 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "request_throttling",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       16,
+				input: map[string]any{
+					"user": map[string]any{
+						"age":       testUserAgeSixteen,
 						"email":     "test@example.com",
 						"status":    "active",
 						"suspended": false,
 						"tier":      "free",
 					},
-					"request": map[string]interface{}{
+					"request": map[string]any{
 						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 25,
+						"attempt": testAttemptHigh,
 					},
 				},
 			},
@@ -910,25 +831,106 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 						RuleName: "rate_limiting",
 						Passed:   false,
 						Error:    errors.New("rule 'rate_limiting' did not pass evaluation"),
-						Duration: 0,
 					},
 					"user_tier": {
 						RuleName: "user_tier",
 						Passed:   false,
 						Error:    errors.New("rule 'user_tier' did not pass evaluation"),
-						Duration: 0,
 					},
 				},
-				Error:    errors.New("too many requests, please try again later"),
-				Duration: 0,
+				Error: errors.New("too many requests, please try again later"),
 			},
 			wantErr: false,
 		},
 		{
-			name: "fail - unknown_ruleset",
+			name: "GivenNoneSelectorAndAllRulesFalse_WhenEvaluateRuleset_ThenPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				if err := engine.UpsertRuleset("no_privilege_or_quota", Ruleset{
+					Name:     "No Privilege Or Quota",
+					Selector: SelectorNone,
+					Rules:    []string{"rate_limiting", "user_tier"},
+				}); err != nil {
+					t.Fatalf("failed to upsert ruleset: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				rulesetName: "no_privilege_or_quota",
+				input: map[string]any{
+					"user":    map[string]any{"tier": "free"},
+					"request": map[string]any{"attempt": testAttemptHigh},
+				},
+			},
+			want: RulesetResult{
+				RulesetName: "no_privilege_or_quota",
+				Passed:      true,
+				RuleResults: map[string]RuleResult{
+					"rate_limiting": {
+						RuleName: "rate_limiting",
+						Passed:   false,
+						Error:    errors.New("rule 'rate_limiting' did not pass evaluation"),
+					},
+					"user_tier": {
+						RuleName: "user_tier",
+						Passed:   false,
+						Error:    errors.New("rule 'user_tier' did not pass evaluation"),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "GivenMinPassedThresholdTwo_WhenTwoOfThreeRulesPass_ThenPasses",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
+				if err != nil {
+					t.Fatalf("failed to create rules engine: %v", err)
+				}
+				if err := engine.UpsertRuleset("two_of_three", Ruleset{
+					Name:      "Two Of Three",
+					MinPassed: 2,
+					Rules:     []string{"age_validation", "email_format", "user_tier"},
+				}); err != nil {
+					t.Fatalf("failed to upsert ruleset: %v", err)
+				}
+				return engine
+			},
+			args: args{
+				rulesetName: "two_of_three",
+				input: map[string]any{
+					"user": map[string]any{
+						"age":   testUserAgeTeen,
+						"email": "test@example.com",
+						"tier":  "free",
+					},
+				},
+			},
+			want: RulesetResult{
+				RulesetName: "two_of_three",
+				Passed:      true,
+				RuleResults: map[string]RuleResult{
+					"age_validation": {RuleName: "age_validation", Passed: true},
+					"email_format":   {RuleName: "email_format", Passed: true},
+					"user_tier": {
+						RuleName: "user_tier",
+						Passed:   false,
+						Error:    errors.New("rule 'user_tier' did not pass evaluation"),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "GivenUnknownRulesetName_WhenEvaluateRuleset_ThenReturnsError",
+			ruleengine: func(t *testing.T) *RuleEngine {
+				env := setupEnvironment()(t)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
@@ -936,19 +938,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 			},
 			args: args{
 				rulesetName: "unknown_ruleset",
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       16,
-						"email":     "test@example.com",
-						"status":    "active",
-						"suspended": false,
-						"tier":      "free",
-					},
-					"request": map[string]interface{}{
-						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 25,
-					},
-				},
+				input:       map[string]any{},
 			},
 			want:    RulesetResult{},
 			wantErr: true,
@@ -957,8 +947,7 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			re := tt.ruleengine(t)
-			re.SetContext(tt.args.context)
-			got, err := re.EvaluateRuleset(tt.args.rulesetName)
+			got, err := re.EvaluateRuleset(context.Background(), tt.args.rulesetName, tt.args.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("EvaluateRuleset() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -977,40 +966,35 @@ func TestRuleEngine_EvaluateRuleset(t *testing.T) {
 	}
 }
 
-func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
-	type args struct {
-		context map[string]interface{}
-	}
+func TestEvaluateAllRulesets(t *testing.T) {
 	tests := []struct {
 		name       string
 		ruleengine func(*testing.T) *RuleEngine
-		args       args
+		input      map[string]any
 		want       map[string]RulesetResult
 		wantErr    bool
 	}{
 		{
-			name: "success",
+			name: "GivenValidInputInDev_WhenEvaluateAllRulesets_ThenReturnsAllRulesetResults",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
 				return engine
 			},
-			args: args{
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
-						"email":     "test@example.com",
-						"status":    "active",
-						"suspended": false,
-						"tier":      "free",
-					},
-					"request": map[string]interface{}{
-						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
-					},
+			input: map[string]any{
+				"user": map[string]any{
+					"age":       testUserAgeTeen,
+					"email":     "test@example.com",
+					"status":    "active",
+					"suspended": false,
+					"tier":      "free",
+				},
+				"request": map[string]any{
+					"time":    time.Now().Format(time.RFC3339),
+					"attempt": testAttemptLow,
 				},
 			},
 			want: map[string]RulesetResult{
@@ -1018,87 +1002,54 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 					RulesetName: "user_registration",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"age_validation": {
-							RuleName: "age_validation",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
-						"email_format": {
-							RuleName: "email_format",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
-						"user_status": {
-							RuleName: "user_status",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"age_validation": {RuleName: "age_validation", Passed: true},
+						"email_format":   {RuleName: "email_format", Passed: true},
+						"user_status":    {RuleName: "user_status", Passed: true},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 				"request_throttling": {
 					RulesetName: "request_throttling",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"rate_limiting": {
-							RuleName: "rate_limiting",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"rate_limiting": {RuleName: "rate_limiting", Passed: true},
 						"user_tier": {
 							RuleName: "user_tier",
 							Passed:   false,
 							Error:    errors.New("rule 'user_tier' did not pass evaluation"),
-							Duration: 0,
 						},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 				"domain_whitelist": {
 					RulesetName: "domain_whitelist",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"email_whitelist": {
-							RuleName: "email_whitelist",
-							Passed:   true,
-							Duration: 0,
-						},
+						"email_whitelist": {RuleName: "email_whitelist", Passed: true},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 			},
 			wantErr: false,
 		},
 		{
-			name: "success - optimise",
+			name: "GivenOptimisedEngineInDev_WhenEvaluateAllRulesets_ThenReturnsAllRulesetResults",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env, WithOptimise())
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env, WithOptimise())
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
 				return engine
 			},
-			args: args{
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
-						"email":     "test@example.com",
-						"status":    "active",
-						"suspended": false,
-						"tier":      "free",
-					},
-					"request": map[string]interface{}{
-						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
-					},
+			input: map[string]any{
+				"user": map[string]any{
+					"age":       testUserAgeTeen,
+					"email":     "test@example.com",
+					"status":    "active",
+					"suspended": false,
+					"tier":      "free",
+				},
+				"request": map[string]any{
+					"time":    time.Now().Format(time.RFC3339),
+					"attempt": testAttemptLow,
 				},
 			},
 			want: map[string]RulesetResult{
@@ -1106,116 +1057,80 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 					RulesetName: "user_registration",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"age_validation": {
-							RuleName: "age_validation",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
-						"email_format": {
-							RuleName: "email_format",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
-						"user_status": {
-							RuleName: "user_status",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"age_validation": {RuleName: "age_validation", Passed: true},
+						"email_format":   {RuleName: "email_format", Passed: true},
+						"user_status":    {RuleName: "user_status", Passed: true},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 				"request_throttling": {
 					RulesetName: "request_throttling",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"rate_limiting": {
-							RuleName: "rate_limiting",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"rate_limiting": {RuleName: "rate_limiting", Passed: true},
 						"user_tier": {
 							RuleName: "user_tier",
 							Passed:   false,
 							Error:    errors.New("rule 'user_tier' did not pass evaluation"),
-							Duration: 0,
 						},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 				"domain_whitelist": {
 					RulesetName: "domain_whitelist",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"email_whitelist": {
-							RuleName: "email_whitelist",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"email_whitelist": {RuleName: "email_whitelist", Passed: true},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 			},
 			wantErr: false,
 		},
 		{
-			name: "fail - timeout - 1ns",
+			name: "GivenOneNanosecondPolicyTimeout_WhenEvaluateAllRulesets_ThenReturnsTimeoutError",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "production", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envProduction, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
 				return engine
 			},
-			args: args{
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       15,
-						"email":     "test@example.com",
-						"status":    "active",
-						"suspended": false,
-						"tier":      "free",
-					},
-					"request": map[string]interface{}{
-						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
-					},
+			input: map[string]any{
+				"user": map[string]any{
+					"age":       testUserAgeTeen,
+					"email":     "test@example.com",
+					"status":    "active",
+					"suspended": false,
+					"tier":      "free",
+				},
+				"request": map[string]any{
+					"time":    time.Now().Format(time.RFC3339),
+					"attempt": testAttemptLow,
 				},
 			},
-			want:    map[string]RulesetResult{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
-			name: "fail - one ruleset fails",
+			name: "GivenUnderageUserInDev_WhenEvaluateAllRulesets_ThenReturnsFailedRegistrationAndPassingOthers",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine("./testdata/rules.yml", "development", env)
+				engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 				if err != nil {
 					t.Fatalf("failed to create rules engine: %v", err)
 				}
 				return engine
 			},
-			args: args{
-				context: map[string]interface{}{
-					"user": map[string]interface{}{
-						"age":       5,
-						"email":     "test@example.com",
-						"status":    "active",
-						"suspended": false,
-						"tier":      "free",
-					},
-					"request": map[string]interface{}{
-						"time":    time.Now().Format(time.RFC3339),
-						"attempt": 2,
-					},
+			input: map[string]any{
+				"user": map[string]any{
+					"age":       testUserAgeFive,
+					"email":     "test@example.com",
+					"status":    "active",
+					"suspended": false,
+					"tier":      "free",
+				},
+				"request": map[string]any{
+					"time":    time.Now().Format(time.RFC3339),
+					"attempt": testAttemptLow,
 				},
 			},
 			want: map[string]RulesetResult{
@@ -1227,57 +1142,30 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 							RuleName: "age_validation",
 							Passed:   false,
 							Error:    errors.New("user must be at least 18 years old"),
-							Duration: 0,
 						},
-						"email_format": {
-							RuleName: "email_format",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
-						"user_status": {
-							RuleName: "user_status",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"email_format": {RuleName: "email_format", Passed: true},
+						"user_status":  {RuleName: "user_status", Passed: true},
 					},
-					Error:    errors.New("ruleset 'user_registration' did not pass evaluation"),
-					Duration: 0,
+					Error: errors.New("ruleset 'user_registration' did not pass evaluation"),
 				},
 				"request_throttling": {
 					RulesetName: "request_throttling",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"rate_limiting": {
-							RuleName: "rate_limiting",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"rate_limiting": {RuleName: "rate_limiting", Passed: true},
 						"user_tier": {
 							RuleName: "user_tier",
 							Passed:   false,
 							Error:    errors.New("rule 'user_tier' did not pass evaluation"),
-							Duration: 0,
 						},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 				"domain_whitelist": {
 					RulesetName: "domain_whitelist",
 					Passed:      true,
 					RuleResults: map[string]RuleResult{
-						"email_whitelist": {
-							RuleName: "email_whitelist",
-							Passed:   true,
-							Error:    nil,
-							Duration: 0,
-						},
+						"email_whitelist": {RuleName: "email_whitelist", Passed: true},
 					},
-					Error:    nil,
-					Duration: 0,
 				},
 			},
 			wantErr: false,
@@ -1286,10 +1174,12 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			re := tt.ruleengine(t)
-			re.SetContext(tt.args.context)
-			got, err := re.EvaluateAllRulesets()
+			got, err := re.EvaluateAllRulesets(context.Background(), tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("EvaluateAllRulesets() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr {
 				return
 			}
 			diff := cmp.Diff(got, tt.want,
@@ -1307,101 +1197,189 @@ func TestRuleEngine_EvaluateAllRulesets(t *testing.T) {
 }
 
 func TestNewRuleEngine(t *testing.T) {
-	type args struct {
+	tests := []struct {
+		name        string
 		configPath  string
 		environment string
 		envProvider func(*testing.T) *cel.Env
 		opts        []Option
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		wantErr     bool
 	}{
 		{
-			name: "fail - bad path",
-			args: args{
-				configPath:  "test.yml",
-				envProvider: setupEnvironment(),
+			name:        "GivenNonExistentConfigFile_WhenNewRuleEngine_ThenReturnsError",
+			configPath:  "test.yml",
+			envProvider: setupEnvironment(),
+			wantErr:     true,
+		},
+		{
+			name:       "GivenNilCELEnvironment_WhenNewRuleEngine_ThenReturnsError",
+			configPath: testRulesYAMLPath,
+			envProvider: func(*testing.T) *cel.Env {
+				return nil
 			},
 			wantErr: true,
 		},
 		{
-			name: "fail - bad cel env",
-			args: args{
-				configPath: "./testdata/rules.yml",
-				envProvider: func(t *testing.T) *cel.Env {
-					return nil
-				},
-			},
-			wantErr: true,
+			name:        "GivenInvalidExecutionPolicy_WhenNewRuleEngine_ThenReturnsError",
+			configPath:  testBadPolicyYAMLPath,
+			envProvider: setupEnvironment(),
+			wantErr:     true,
 		},
 		{
-			name: "fail - bad policy",
-			args: args{
-				configPath:  "./testdata/bad_policy.yml",
-				envProvider: setupEnvironment(),
-			},
-			wantErr: true,
+			name:        "GivenInvalidCELExpression_WhenNewRuleEngine_ThenReturnsError",
+			configPath:  testBadRulesYAMLPath,
+			envProvider: setupEnvironment(),
+			wantErr:     true,
 		},
 		{
-			name: "fail - bad rules",
-			args: args{
-				configPath:  "./testdata/bad_rules.yml",
-				envProvider: setupEnvironment(),
-			},
-			wantErr: true,
+			name:        "GivenMissingParentRule_WhenNewRuleEngine_ThenReturnsError",
+			configPath:  testBadParentsYAMLPath,
+			envProvider: setupEnvironment(),
+			wantErr:     true,
 		},
 		{
-			name: "fail - bad rules",
-			args: args{
-				configPath:  "./testdata/bad_rules.yml",
-				envProvider: setupEnvironment(),
-			},
-			wantErr: true,
+			name:        "GivenCircularParentDependency_WhenNewRuleEngine_ThenReturnsError",
+			configPath:  testBadCircularYAMLPath,
+			envProvider: setupEnvironment(),
+			wantErr:     true,
 		},
 		{
-			name: "fail - missing parents",
-			args: args{
-				configPath:  "./testdata/bad_parents.yml",
-				envProvider: setupEnvironment(),
-			},
-			wantErr: true,
+			name:        "GivenValidConfigAndEnv_WhenNewRuleEngine_ThenSucceeds",
+			configPath:  testRulesYAMLPath,
+			envProvider: setupEnvironment(),
+			wantErr:     false,
 		},
 		{
-			name: "fail - circular parents",
-			args: args{
-				configPath:  "./testdata/bad_parent_circular.yml",
-				envProvider: setupEnvironment(),
-			},
-			wantErr: true,
-		},
-		{
-			name: "success",
-			args: args{
-				configPath:  "./testdata/rules.yml",
-				envProvider: setupEnvironment(),
-			},
-			wantErr: false,
-		},
-		{
-			name: "success - with options",
-			args: args{
-				configPath:  "./testdata/rules.yml",
-				envProvider: setupEnvironment(),
-				opts:        []Option{WithOptimise()},
-			},
-			wantErr: false,
+			name:        "GivenValidConfigWithOptimiseOption_WhenNewRuleEngine_ThenSucceeds",
+			configPath:  testRulesYAMLPath,
+			envProvider: setupEnvironment(),
+			opts:        []Option{WithOptimise()},
+			wantErr:     false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewRuleEngine(tt.args.configPath, tt.args.environment, tt.args.envProvider(t), tt.args.opts...)
-			t.Logf("NewRuleEngine() error = %v", err)
+			_, err := NewRuleEngine(tt.configPath, tt.environment, tt.envProvider(t), tt.opts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRuleEngine() error = %v, wantErr %v", err, tt.wantErr)
-				return
 			}
 		})
 	}
+}
+
+func TestProgrammaticRuleManagement(t *testing.T) {
+	t.Run("GivenProgrammaticConfig_WhenUpsertRemoveAndInspect_ThenUpdatesEngineSafely", func(t *testing.T) {
+		env := setupEnvironment()(t)
+		cfg := &RulesetConfig{
+			Globals: map[string]any{"min_age": prodMinAge},
+			Rules: map[string]Rule{
+				"is_adult": {
+					Name:       "Adult Check",
+					Expression: "user.age >= globals.min_age",
+				},
+			},
+			Rulesets: map[string]Ruleset{
+				"onboarding": {
+					Name:     "Onboarding",
+					Selector: SelectorAnd,
+					Rules:    []string{"is_adult"},
+				},
+			},
+		}
+
+		engine, err := NewRuleEngineFromConfig(cfg, "", env)
+		if err != nil {
+			t.Fatalf("NewRuleEngineFromConfig() unexpected error: %v", err)
+		}
+
+		if err := engine.ValidateExpression("user.age > 0"); err != nil {
+			t.Errorf("ValidateExpression(valid) unexpected error: %v", err)
+		}
+		if err := engine.ValidateExpression("user.age + 10"); err == nil {
+			t.Error("ValidateExpression(non-bool) expected error, got nil")
+		}
+
+		if err := engine.UpsertRule("verified_adult", Rule{
+			Name:       "Verified Adult",
+			Extends:    "is_adult",
+			Expression: "user.verified == true",
+		}); err != nil {
+			t.Fatalf("UpsertRule() unexpected error: %v", err)
+		}
+
+		if err := engine.UpsertRuleset("verified_onboarding", Ruleset{
+			Name:     "Verified Onboarding",
+			Selector: SelectorAnd,
+			Rules:    []string{"verified_adult"},
+		}); err != nil {
+			t.Fatalf("UpsertRuleset() unexpected error: %v", err)
+		}
+
+		res, err := engine.EvaluateRuleset(context.Background(), "verified_onboarding", map[string]any{
+			"user": map[string]any{"age": defaultMinAge, "verified": true},
+		})
+		if err != nil || !res.Passed {
+			t.Fatalf("EvaluateRuleset(verified_onboarding) got (%+v, %v), want Passed=true", res, err)
+		}
+
+		// Removing a rule still referenced by a child rule or ruleset must fail
+		if err := engine.RemoveRule("is_adult"); err == nil {
+			t.Error("RemoveRule(is_adult) expected error while extended by verified_adult, got nil")
+		}
+
+		if len(engine.ListRules()) != 2 {
+			t.Errorf("ListRules() count = %d, want 2", len(engine.ListRules()))
+		}
+		if len(engine.ListRulesets()) != 2 {
+			t.Errorf("ListRulesets() count = %d, want 2", len(engine.ListRulesets()))
+		}
+
+		// Verify JSON marshaling of RulesetResult
+		payload, err := json.Marshal(res)
+		if err != nil || len(payload) == 0 {
+			t.Errorf("json.Marshal(RulesetResult) err = %v, payload = %s", err, string(payload))
+		}
+	})
+}
+
+func TestConcurrentEvaluations(t *testing.T) {
+	t.Run("GivenConcurrentEvaluatorsAndMutators_WhenRunningUnderRaceDetector_ThenNoDataRacesOccur", func(t *testing.T) {
+		env := setupEnvironment()(t)
+		engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
+		if err != nil {
+			t.Fatalf("NewRuleEngine() error = %v", err)
+		}
+
+		const workers = 16
+		var wg sync.WaitGroup
+		wg.Add(workers)
+
+		for i := range workers {
+			go func(id int) {
+				defer wg.Done()
+				input := map[string]any{
+					"user": map[string]any{
+						"age":       devMinAge + id,
+						"email":     "test@example.com",
+						"status":    "active",
+						"suspended": false,
+						"tier":      "premium",
+					},
+					"request": map[string]any{
+						"time":    time.Now().Format(time.RFC3339),
+						"attempt": testAttemptLow,
+					},
+				}
+				if id%4 == 0 {
+					_ = engine.UpsertRule("dynamic_rule", Rule{
+						Name:       "Dynamic Rule",
+						Expression: "user.age >= globals.min_age",
+					})
+				}
+				_, _ = engine.EvaluateAllRulesets(context.Background(), input)
+				_, _ = engine.EvaluateRule(context.Background(), "test_user", input)
+			}(i)
+		}
+		wg.Wait()
+	})
 }

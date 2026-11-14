@@ -1,44 +1,58 @@
 package ruleengine
 
 import (
-	"reflect"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
 
+const (
+	testRulesYAMLPath       = "./testdata/rules.yml"
+	testRulesJSONPath       = "./testdata/rules.json"
+	testNonExistentYAMLPath = "./testdata/nonexistent.yml"
+
+	envDevelopment = "development"
+	envProduction  = "production"
+	envLocal       = "local"
+
+	policyDefault    = "default_policy"
+	policyFailFast   = "fail_fast"
+	policyCollectAll = "collect_all"
+	policyUnknown    = "unknown_policy"
+	policyBadTime    = "bad_time"
+
+	defaultMinAge     = 21
+	devMinAge         = 13
+	prodMinAge        = 18
+	defaultMaxRetries = 5
+	defaultTimeout    = 5 * time.Second
+)
+
 func TestNewRulesetConfig(t *testing.T) {
-	type args struct {
-		configPath string
-	}
 	tests := []struct {
-		name    string
-		args    args
-		want    *RulesetConfig
-		wantErr bool
+		name       string
+		configPath string
+		want       *RulesetConfig
+		wantErr    bool
 	}{
 		{
-			name: "fail - bad path",
-			args: args{
-				configPath: "./testdata/nonexistent.yml",
-			},
-			want:    nil,
-			wantErr: true,
+			name:       "GivenNonExistentPath_WhenNewRulesetConfig_ThenReturnsError",
+			configPath: testNonExistentYAMLPath,
+			want:       nil,
+			wantErr:    true,
 		},
 		{
-			name: "fail - bad file",
-			args: args{
-				configPath: "./testdata/rules.json",
-			},
-			want:    nil,
-			wantErr: true,
+			name:       "GivenInvalidYAMLFile_WhenNewRulesetConfig_ThenReturnsError",
+			configPath: testRulesJSONPath,
+			want:       nil,
+			wantErr:    true,
 		},
 		{
-			name: "success - valid file",
-			args: args{
-				configPath: "./testdata/rules.yml",
-			},
+			name:       "GivenValidYAMLFile_WhenNewRulesetConfig_ThenReturnsParsedConfig",
+			configPath: testRulesYAMLPath,
 			want: &RulesetConfig{
 				APIVersion: "v1",
 				Kind:       "RulesetConfig",
@@ -46,9 +60,9 @@ func TestNewRulesetConfig(t *testing.T) {
 					Name:        "cel-rulesets-example",
 					Description: "Examples of CEL rule combinations and patterns",
 				},
-				Globals: map[string]interface{}{
-					"min_age":         13,
-					"max_retries":     5,
+				Globals: map[string]any{
+					"min_age":         devMinAge,
+					"max_retries":     defaultMaxRetries,
 					"allowed_domains": []any{"example.com", "test.org"},
 				},
 				Rules: map[string]Rule{
@@ -95,12 +109,11 @@ func TestNewRulesetConfig(t *testing.T) {
 						Extends:     "email_whitelist",
 					},
 				},
-
 				Rulesets: map[string]Ruleset{
 					"user_registration": {
 						Name:        "User Registration Validation",
 						Description: "All rules must pass for successful registration",
-						Selector:    "AND",
+						Selector:    SelectorAnd,
 						Rules: []string{
 							"age_validation",
 							"email_format",
@@ -110,7 +123,7 @@ func TestNewRulesetConfig(t *testing.T) {
 					"request_throttling": {
 						Name:        "Request Throttling Check",
 						Description: "At least one rule must pass to allow request",
-						Selector:    "OR",
+						Selector:    SelectorOr,
 						Rules: []string{
 							"rate_limiting",
 							"user_tier",
@@ -125,13 +138,13 @@ func TestNewRulesetConfig(t *testing.T) {
 					},
 				},
 				ExecutionPolicies: map[string]ExecutionPolicy{
-					"fail_fast": {
+					policyFailFast: {
 						Name:             "Fail Fast Execution",
 						Description:      "Stop execution on first rule failure",
 						StopOnFailure:    true,
 						MaxExecutionTime: "1ns",
 					},
-					"collect_all": {
+					policyCollectAll: {
 						Name:             "Collect All Results",
 						Description:      "Execute all rules regardless of failures",
 						StopOnFailure:    false,
@@ -139,7 +152,7 @@ func TestNewRulesetConfig(t *testing.T) {
 					},
 				},
 				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "collect_all",
+					ExecutionPolicy: policyCollectAll,
 					CustomErrorMessages: map[string]string{
 						"age_validation":     "user must be at least 18 years old",
 						"email_format":       "please provide a valid email address",
@@ -149,20 +162,20 @@ func TestNewRulesetConfig(t *testing.T) {
 					},
 				},
 				Environments: map[string]Environment{
-					"development": {
-						Globals: map[string]interface{}{
-							"min_age": 13,
+					envDevelopment: {
+						Globals: map[string]any{
+							"min_age": devMinAge,
 						},
 						ErrorHandling: ErrorHandling{
 							ExecutionPolicy: "",
 						},
 					},
-					"production": {
-						Globals: map[string]interface{}{
-							"min_age": 18,
+					envProduction: {
+						Globals: map[string]any{
+							"min_age": prodMinAge,
 						},
 						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "fail_fast",
+							ExecutionPolicy: policyFailFast,
 						},
 					},
 				},
@@ -172,394 +185,278 @@ func TestNewRulesetConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewRulesetConfig(tt.args.configPath)
+			got, err := NewRulesetConfig(tt.configPath)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRulesetConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			diff := cmp.Diff(got, tt.want)
-			if diff != "" {
+			if diff := cmp.Diff(got, tt.want); diff != "" {
 				t.Errorf("NewRulesetConfig() (-got +want):\n%s", diff)
 			}
 		})
 	}
 }
 
-func TestRulesetConfig_ApplyEnvironment(t *testing.T) {
-	type fields struct {
-		APIVersion        string
-		Kind              string
-		Metadata          Metadata
-		Globals           map[string]interface{}
-		Rules             map[string]Rule
-		Rulesets          map[string]Ruleset
-		ExecutionPolicies map[string]ExecutionPolicy
-		ErrorHandling     ErrorHandling
-		Environments      map[string]Environment
-	}
-	type args struct {
-		environment string
-	}
+func TestNewRulesetConfigFromReader(t *testing.T) {
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   *RulesetConfig
+		name    string
+		input   string
+		wantErr bool
 	}{
 		{
-			name: "success - apply development environment",
-			fields: fields{
-				Globals: map[string]interface{}{
-					"min_age": 21,
+			name:    "GivenValidYAMLReader_WhenNewRulesetConfigFromReader_ThenReturnsConfig",
+			input:   "apiVersion: v1\nkind: RulesetConfig\nrules:\n  r1:\n    expression: \"true\"\n",
+			wantErr: false,
+		},
+		{
+			name:    "GivenMalformedYAMLReader_WhenNewRulesetConfigFromReader_ThenReturnsError",
+			input:   ":::invalid_yaml\n\t- [",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewRulesetConfigFromReader(strings.NewReader(tt.input))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("NewRulesetConfigFromReader() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && got == nil {
+				t.Fatal("NewRulesetConfigFromReader() returned nil config without error")
+			}
+		})
+	}
+}
+
+func TestApplyEnvironment(t *testing.T) {
+	baseEnvironments := func() map[string]Environment {
+		return map[string]Environment{
+			envDevelopment: {
+				Globals: map[string]any{
+					"min_age": devMinAge,
 				},
 				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "default_policy",
+					ExecutionPolicy: policyCollectAll,
+					CustomErrorMessages: map[string]string{
+						"age_validation": "user must be at least 13 years old",
+					},
+				},
+			},
+			envProduction: {
+				Globals: map[string]any{
+					"min_age": prodMinAge,
+				},
+				ErrorHandling: ErrorHandling{
+					ExecutionPolicy: policyFailFast,
+					CustomErrorMessages: map[string]string{
+						"age_validation": "user must be at least 18 years old",
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		initial     *RulesetConfig
+		environment string
+		want        *RulesetConfig
+	}{
+		{
+			name: "GivenDevelopmentEnvironment_WhenApplyEnvironment_ThenOverridesGlobalsAndErrors",
+			initial: &RulesetConfig{
+				Globals: map[string]any{
+					"min_age": defaultMinAge,
+				},
+				ErrorHandling: ErrorHandling{
+					ExecutionPolicy: policyDefault,
 					CustomErrorMessages: map[string]string{
 						"age_validation": "user must be at least 21 years old",
 						"email_format":   "please provide a valid email address",
 					},
 				},
-				Environments: map[string]Environment{
-					"development": {
-						Globals: map[string]interface{}{
-							"min_age": 13,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "collect_all",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 13 years old",
-							},
-						},
-					},
-					"production": {
-						Globals: map[string]interface{}{
-							"min_age": 18,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "fail_fast",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 18 years old",
-							},
-						},
-					},
-				},
+				Environments: baseEnvironments(),
 			},
-			args: args{
-				environment: "development",
-			},
+			environment: envDevelopment,
 			want: &RulesetConfig{
-				Globals: map[string]interface{}{
-					"min_age": 13,
+				Globals: map[string]any{
+					"min_age": devMinAge,
 				},
 				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "collect_all",
+					ExecutionPolicy: policyCollectAll,
 					CustomErrorMessages: map[string]string{
 						"age_validation": "user must be at least 13 years old",
 						"email_format":   "please provide a valid email address",
 					},
 				},
-				Environments: map[string]Environment{
-					"development": {
-						Globals: map[string]interface{}{
-							"min_age": 13,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "collect_all",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 13 years old",
-							},
-						},
-					},
-					"production": {
-						Globals: map[string]interface{}{
-							"min_age": 18,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "fail_fast",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 18 years old",
-							},
-						},
-					},
-				},
+				Environments: baseEnvironments(),
 			},
 		},
 		{
-			name: "success - apply production environment",
-			fields: fields{
-				Globals: map[string]interface{}{
-					"min_age": 21,
+			name: "GivenProductionEnvironment_WhenApplyEnvironment_ThenOverridesGlobalsAndPolicy",
+			initial: &RulesetConfig{
+				Globals: map[string]any{
+					"min_age": defaultMinAge,
 				},
 				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "default_policy",
+					ExecutionPolicy: policyDefault,
 					CustomErrorMessages: map[string]string{
 						"age_validation": "user must be at least 21 years old",
 						"email_format":   "please provide a valid email address",
 					},
 				},
-				Environments: map[string]Environment{
-					"development": {
-						Globals: map[string]interface{}{
-							"min_age": 13,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "collect_all",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 13 years old",
-							},
-						},
-					},
-					"production": {
-						Globals: map[string]interface{}{
-							"min_age": 18,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "fail_fast",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 18 years old",
-							},
-						},
-					},
-				},
+				Environments: baseEnvironments(),
 			},
-			args: args{
-				environment: "production",
-			},
+			environment: envProduction,
 			want: &RulesetConfig{
-				Globals: map[string]interface{}{
-					"min_age": 18,
+				Globals: map[string]any{
+					"min_age": prodMinAge,
 				},
 				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "fail_fast",
+					ExecutionPolicy: policyFailFast,
 					CustomErrorMessages: map[string]string{
 						"age_validation": "user must be at least 18 years old",
 						"email_format":   "please provide a valid email address",
 					},
 				},
-				Environments: map[string]Environment{
-					"development": {
-						Globals: map[string]interface{}{
-							"min_age": 13,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "collect_all",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 13 years old",
-							},
-						},
-					},
-					"production": {
-						Globals: map[string]interface{}{
-							"min_age": 18,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "fail_fast",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 18 years old",
-							},
-						},
-					},
-				},
+				Environments: baseEnvironments(),
 			},
 		},
 		{
-			name: "success - apply unknown environment",
-			fields: fields{
-				Globals: map[string]interface{}{
-					"min_age": 21,
+			name: "GivenUnknownEnvironment_WhenApplyEnvironment_ThenRetainsBaseConfig",
+			initial: &RulesetConfig{
+				Globals: map[string]any{
+					"min_age": defaultMinAge,
 				},
 				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "default_policy",
+					ExecutionPolicy: policyDefault,
 					CustomErrorMessages: map[string]string{
 						"age_validation": "user must be at least 21 years old",
 						"email_format":   "please provide a valid email address",
 					},
 				},
-				Environments: map[string]Environment{
-					"development": {
-						Globals: map[string]interface{}{
-							"min_age": 13,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "collect_all",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 13 years old",
-							},
-						},
-					},
-					"production": {
-						Globals: map[string]interface{}{
-							"min_age": 18,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "fail_fast",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 18 years old",
-							},
-						},
-					},
-				},
+				Environments: baseEnvironments(),
 			},
-			args: args{
-				environment: "local",
-			},
+			environment: envLocal,
 			want: &RulesetConfig{
-				Globals: map[string]interface{}{
-					"min_age": 21,
+				Globals: map[string]any{
+					"min_age": defaultMinAge,
 				},
 				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "default_policy",
+					ExecutionPolicy: policyDefault,
 					CustomErrorMessages: map[string]string{
 						"age_validation": "user must be at least 21 years old",
 						"email_format":   "please provide a valid email address",
 					},
 				},
-				Environments: map[string]Environment{
-					"development": {
-						Globals: map[string]interface{}{
-							"min_age": 13,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "collect_all",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 13 years old",
-							},
-						},
-					},
-					"production": {
-						Globals: map[string]interface{}{
-							"min_age": 18,
-						},
-						ErrorHandling: ErrorHandling{
-							ExecutionPolicy: "fail_fast",
-							CustomErrorMessages: map[string]string{
-								"age_validation": "user must be at least 18 years old",
-							},
-						},
+				Environments: baseEnvironments(),
+			},
+		},
+		{
+			name: "GivenNilBaseMaps_WhenApplyEnvironment_ThenInitializesMapsWithoutPanic",
+			initial: &RulesetConfig{
+				Globals:       nil,
+				ErrorHandling: ErrorHandling{CustomErrorMessages: nil},
+				Environments:  baseEnvironments(),
+			},
+			environment: envDevelopment,
+			want: &RulesetConfig{
+				Globals: map[string]any{
+					"min_age": devMinAge,
+				},
+				ErrorHandling: ErrorHandling{
+					ExecutionPolicy: policyCollectAll,
+					CustomErrorMessages: map[string]string{
+						"age_validation": "user must be at least 13 years old",
 					},
 				},
+				Environments: baseEnvironments(),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rc := &RulesetConfig{
-				APIVersion:        tt.fields.APIVersion,
-				Kind:              tt.fields.Kind,
-				Metadata:          tt.fields.Metadata,
-				Globals:           tt.fields.Globals,
-				Rules:             tt.fields.Rules,
-				Rulesets:          tt.fields.Rulesets,
-				ExecutionPolicies: tt.fields.ExecutionPolicies,
-				ErrorHandling:     tt.fields.ErrorHandling,
-				Environments:      tt.fields.Environments,
-			}
-			rc.ApplyEnvironment(tt.args.environment)
-			if diff := cmp.Diff(rc, tt.want); diff != "" {
+			tt.initial.ApplyEnvironment(tt.environment)
+			if diff := cmp.Diff(tt.initial, tt.want); diff != "" {
 				t.Errorf("ApplyEnvironment() (-got +want):\n%s", diff)
 			}
 		})
 	}
 }
 
-func TestRulesetConfig_GetExecutionPolicy(t *testing.T) {
-	type fields struct {
-		ExecutionPolicies map[string]ExecutionPolicy
-		ErrorHandling     ErrorHandling
-	}
+func TestToExecutionPolicy(t *testing.T) {
 	tests := []struct {
-		name    string
-		fields  fields
-		want    Policy
-		wantErr bool
+		name      string
+		policies  map[string]ExecutionPolicy
+		errorCfg  ErrorHandling
+		want      Policy
+		wantErr   bool
+		targetErr error
 	}{
 		{
-			name: "fail - invalid policy",
-			fields: fields{
-				ExecutionPolicies: map[string]ExecutionPolicy{
-					"fail_fast": {
-						StopOnFailure:    true,
-						MaxExecutionTime: "1ns",
-					},
-					"collect_all": {
-						StopOnFailure: false,
-					},
+			name: "GivenUnknownPolicyName_WhenToExecutionPolicy_ThenReturnsErrPolicyNotFound",
+			policies: map[string]ExecutionPolicy{
+				policyFailFast: {
+					StopOnFailure:    true,
+					MaxExecutionTime: "1ns",
 				},
-				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "unknown_policy",
+				policyCollectAll: {
+					StopOnFailure: false,
 				},
+			},
+			errorCfg: ErrorHandling{
+				ExecutionPolicy: policyUnknown,
 			},
 			want: Policy{
 				StopOnFailure:    true,
-				MaxExecutionTime: 5 * time.Second,
+				MaxExecutionTime: defaultTimeout,
+			},
+			wantErr:   true,
+			targetErr: ErrPolicyNotFound,
+		},
+		{
+			name: "GivenInvalidDurationString_WhenToExecutionPolicy_ThenReturnsParseError",
+			policies: map[string]ExecutionPolicy{
+				policyBadTime: {
+					StopOnFailure:    true,
+					MaxExecutionTime: "1nsss",
+				},
+			},
+			errorCfg: ErrorHandling{
+				ExecutionPolicy: policyBadTime,
+			},
+			want: Policy{
+				StopOnFailure:    true,
+				MaxExecutionTime: defaultTimeout,
 			},
 			wantErr: true,
 		},
 		{
-			name: "fail - bad_time policy",
-			fields: fields{
-				ExecutionPolicies: map[string]ExecutionPolicy{
-					"bad_time": {
-						StopOnFailure:    true,
-						MaxExecutionTime: "1nsss",
-					},
-					"collect_all": {
-						StopOnFailure: false,
-					},
+			name: "GivenPolicyWithoutMaxExecutionTime_WhenToExecutionPolicy_ThenUsesDefaultTimeout",
+			policies: map[string]ExecutionPolicy{
+				policyDefault: {
+					StopOnFailure: true,
 				},
-				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "bad_time",
-				},
+			},
+			errorCfg: ErrorHandling{
+				ExecutionPolicy: policyDefault,
 			},
 			want: Policy{
 				StopOnFailure:    true,
-				MaxExecutionTime: 5 * time.Second,
-			},
-			wantErr: true,
-		},
-		{
-			name: "success - default policy",
-			fields: fields{
-				ExecutionPolicies: map[string]ExecutionPolicy{
-					"fail_fast": {
-						StopOnFailure:    true,
-						MaxExecutionTime: "1ns",
-					},
-					"collect_all": {
-						StopOnFailure: false,
-					},
-					"default_policy": {
-						StopOnFailure: true,
-					},
-				},
-				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "default_policy",
-				},
-			},
-			want: Policy{
-				StopOnFailure:    true,
-				MaxExecutionTime: 5 * time.Second,
+				MaxExecutionTime: defaultTimeout,
 			},
 			wantErr: false,
 		},
 		{
-			name: "success - fail_fast policy",
-			fields: fields{
-				ExecutionPolicies: map[string]ExecutionPolicy{
-					"fail_fast": {
-						StopOnFailure:    true,
-						MaxExecutionTime: "1ns",
-					},
-					"collect_all": {
-						StopOnFailure: false,
-					},
-					"default_policy": {
-						StopOnFailure: true,
-					},
+			name: "GivenFailFastPolicy_WhenToExecutionPolicy_ThenReturnsConfiguredDuration",
+			policies: map[string]ExecutionPolicy{
+				policyFailFast: {
+					StopOnFailure:    true,
+					MaxExecutionTime: "1ns",
 				},
-				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "fail_fast",
-				},
+			},
+			errorCfg: ErrorHandling{
+				ExecutionPolicy: policyFailFast,
 			},
 			want: Policy{
 				StopOnFailure:    true,
@@ -568,27 +465,18 @@ func TestRulesetConfig_GetExecutionPolicy(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "success - collect_all policy",
-			fields: fields{
-				ExecutionPolicies: map[string]ExecutionPolicy{
-					"fail_fast": {
-						StopOnFailure:    true,
-						MaxExecutionTime: "1ns",
-					},
-					"collect_all": {
-						StopOnFailure: false,
-					},
-					"default_policy": {
-						StopOnFailure: true,
-					},
+			name: "GivenCollectAllPolicy_WhenToExecutionPolicy_ThenReturnsStopOnFailureFalse",
+			policies: map[string]ExecutionPolicy{
+				policyCollectAll: {
+					StopOnFailure: false,
 				},
-				ErrorHandling: ErrorHandling{
-					ExecutionPolicy: "collect_all",
-				},
+			},
+			errorCfg: ErrorHandling{
+				ExecutionPolicy: policyCollectAll,
 			},
 			want: Policy{
 				StopOnFailure:    false,
-				MaxExecutionTime: 5 * time.Second,
+				MaxExecutionTime: defaultTimeout,
 			},
 			wantErr: false,
 		},
@@ -596,16 +484,19 @@ func TestRulesetConfig_GetExecutionPolicy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := &RulesetConfig{
-				ExecutionPolicies: tt.fields.ExecutionPolicies,
-				ErrorHandling:     tt.fields.ErrorHandling,
+				ExecutionPolicies: tt.policies,
+				ErrorHandling:     tt.errorCfg,
 			}
 			got, err := rc.ToExecutionPolicy()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetExecutionPolicy() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ToExecutionPolicy() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetExecutionPolicy() got = %v, want %v", got, tt.want)
+			if tt.targetErr != nil && !errors.Is(err, tt.targetErr) {
+				t.Errorf("ToExecutionPolicy() error = %v, want errors.Is %v", err, tt.targetErr)
+			}
+			if diff := cmp.Diff(got, tt.want); diff != "" {
+				t.Errorf("ToExecutionPolicy() (-got +want):\n%s", diff)
 			}
 		})
 	}
