@@ -4,9 +4,6 @@ A concurrency-safe, configurable rule engine in Go powered by [CEL (Common Expre
 
 ## Features
 
-- **Lock-Free, Concurrency-Safe Evaluation**: Readers load an immutable compiled snapshot via `atomic.Pointer` while writers (`UpsertRule`, `UpsertRuleset`, `RemoveRule`) publish copy-on-write snapshots without blocking in-flight evaluations.
-- **Consistent `context.Context` & Timeout Enforcement**: Enforces both caller deadlines and `Policy.MaxExecutionTime` across `EvaluateRule`, `EvaluateRuleset`, and `EvaluateAllRulesets`, interrupting long-running CEL comprehensions via `cel.InterruptCheckFrequency`.
-- **Distinct Business Failures vs. Runtime Evaluation Errors**: `RuleResult.Error` carries the business failure message while `RuleResult.EvalError` records runtime CEL errors, ensuring `NONE` rulesets fail closed when a rule cannot be evaluated.
 - **YAML & Programmatic Configuration**: Load rules from YAML files, `io.Reader`, `[]byte`, or construct/mutate rules and rulesets dynamically at runtime.
 - **Rule Inheritance (`extends`)**: Compose hierarchical rules evaluated top-down from root ancestor to child with compile-time cycle detection.
 - **Rich Ruleset Combinators**: Combine rules using `AND`, `OR`, `NONE` (logical NOR, fail-closed), or `min_passed` ($N$-of-$M$ threshold) selectors.
@@ -101,8 +98,3 @@ By default, `ruleengine-mcp` starts in **read-only mode** (exposing only evaluat
 | `list_rulesets` | Read-only | List all configured rulesets and combinator selectors |
 | `upsert_rule` | `-allow-authoring` | Dynamically compile and register/update a rule in memory |
 | `upsert_ruleset` | `-allow-authoring` | Dynamically register/update a ruleset in memory |
-
-## Breaking Changes from `v0.0.3`
-- Removed stateful `SetContext`; `EvaluateRule`, `EvaluateRuleset`, and `EvaluateAllRulesets` now accept `(ctx context.Context, ..., input map[string]any)`.
-- Unknown ruleset `selector` values and combining `selector` with `min_passed` now fail validation (`ErrInvalidSelector` / `ErrInvalidMinPassed`) instead of silently falling back to `AND`.
-- Standard CEL short-circuiting (`&&` / `||`) is now enabled by default; use `WithExhaustiveEval()` when exhaustive state tracking is required.
