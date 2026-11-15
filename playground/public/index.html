@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CEL Rule Engine Playground (v0.1.0)</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-header: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #2f81f7;
+      --pass-bg: rgba(46, 160, 67, 0.15);
+      --pass-fg: #3fb950;
+      --fail-bg: rgba(248, 81, 73, 0.15);
+      --fail-fg: #f85149;
+      --warn-bg: rgba(210, 153, 34, 0.15);
+      --warn-fg: #d29922;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      color: var(--muted);
+    }
+    .badge.ready {
+      color: var(--pass-fg);
+      background: var(--pass-bg);
+      border-color: rgba(63, 185, 80, 0.4);
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    select, input[type="text"], button {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12.5px;
+      font-family: var(--font-sans);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button:hover { opacity: 0.92; }
+    a.gh-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12.5px;
+      padding: 4px 8px;
+    }
+    a.gh-link:hover { color: var(--text); }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr 1.15fr;
+      min-height: 0;
+    }
+    @media (max-width: 1024px) {
+      body { overflow: auto; height: auto; }
+      main { grid-template-columns: 1fr; height: auto; }
+      .pane { min-height: 360px; }
+    }
+    .pane {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      min-height: 0;
+    }
+    .pane:last-child { border-right: none; }
+    .pane-header {
+      padding: 8px 12px;
+      background: var(--panel-header);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    textarea.editor {
+      flex: 1;
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.5;
+      tab-size: 2;
+    }
+    .results-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .card-title {
+      font-weight: 600;
+      font-size: 13.5px;
+      font-family: var(--font-mono);
+    }
+    .pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+    }
+    .pill.pass { background: var(--pass-bg); color: var(--pass-fg); }
+    .pill.fail { background: var(--fail-bg); color: var(--fail-fg); }
+    .pill.warn { background: var(--warn-bg); color: var(--warn-fg); }
+    .pill.selector {
+      background: rgba(47, 129, 247, 0.15);
+      color: #58a6ff;
+      margin-right: 4px;
+    }
+    .rule-list {
+      margin-top: 8px;
+      border-top: 1px solid var(--border);
+      padding-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rule-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 12px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .rule-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .error-msg {
+      color: var(--fail-fg);
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+      margin-top: 2px;
+    }
+    .eval-error-msg {
+      color: var(--warn-fg);
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+      margin-top: 2px;
+    }
+    .tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+      padding: 3px 8px;
+      font-size: 11.5px;
+      border-radius: 4px;
+      text-transform: none;
+    }
+    .tab-btn.active {
+      background: var(--bg);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    pre.code-out {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>CEL Rule Engine Playground</span>
+      <span class="badge">v0.1.0</span>
+      <span id="wasm-status" class="badge">Loading Wasm...</span>
+    </div>
+    <div class="controls">
+      <label style="font-size:12px;color:var(--muted)">Preset:
+        <select id="preset-select">
+          <option value="full">Full Demo (AND / OR / NONE / min_passed / extends)</option>
+          <option value="none_fail_closed">Fail-Closed NONE Blocklist (Missing Field)</option>
+          <option value="quorum">2-of-3 Quorum (min_passed)</option>
+        </select>
+      </label>
+      <label style="font-size:12px;color:var(--muted)">Env:
+        <select id="env-select">
+          <option value="development">development</option>
+          <option value="production">production</option>
+        </select>
+      </label>
+      <button id="share-btn" type="button" title="Copy shareable URL">Share Link</button>
+      <button id="run-btn" type="button" class="primary">Evaluate (⌘+Enter)</button>
+      <a class="gh-link" href="https://github.com/mobanhawi/ruleengine" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="pane">
+      <div class="pane-header">
+        <span>1. Rules Configuration (YAML)</span>
+        <span style="font-weight:400;text-transform:none">Supports AND, OR, NONE, min_passed, extends</span>
+      </div>
+      <textarea id="yaml-editor" class="editor" spellcheck="false"></textarea>
+    </section>
+
+    <section class="pane">
+      <div class="pane-header">
+        <span>2. Input Context (JSON)</span>
+        <span style="font-weight:400;text-transform:none">Injected into CEL activation</span>
+      </div>
+      <textarea id="json-editor" class="editor" spellcheck="false"></textarea>
+    </section>
+
+    <section class="pane">
+      <div class="pane-header">
+        <span>3. Evaluation Results</span>
+        <div class="tabs">
+          <button id="tab-visual" class="tab-btn active" type="button">Visual</button>
+          <button id="tab-mcp" class="tab-btn" type="button">MCP JSON-RPC</button>
+          <button id="tab-raw" class="tab-btn" type="button">Raw JSON</button>
+        </div>
+      </div>
+      <div id="results-container" class="results-container"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
