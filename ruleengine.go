@@ -4,130 +4,215 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/google/cel-go/cel"
+	celgo "github.com/google/cel-go/cel"
+
+	"github.com/mobanhawi/ruleengine/cel"
+	"github.com/mobanhawi/ruleengine/config"
 )
 
-// snapshot is an immutable view of the compiled engine state. It is never mutated after
-// being published via RuleEngine.state; writers build a modified copy and swap it in.
+const defaultExecutionTimeout = 5 * time.Second
+
+// snapshot is an immutable view of the compiled engine state. It has no dependency on
+// serialized configuration structures or specific expression engines.
 type snapshot struct {
-	config   *RulesetConfig
-	programs map[string]cel.Program
-	parents  map[string][]string
+	rules         map[string]Rule
+	programs      map[string]EvalFunc
+	parents       map[string][]string
+	rulesets      map[string]Ruleset
+	globals       map[string]any
+	errorMessages map[string]string
 }
 
-// clone returns a copy of the snapshot that a writer may mutate before publishing.
-// cel.Program values are immutable and safe to share between snapshots.
+// clone returns a deep copy of the snapshot that a writer may mutate before publishing.
 func (s *snapshot) clone() *snapshot {
+	rules := make(map[string]Rule, len(s.rules))
+	for k, r := range s.rules {
+		r.Tags = slices.Clone(r.Tags)
+		rules[k] = r
+	}
+
+	rulesets := make(map[string]Ruleset, len(s.rulesets))
+	for k, rs := range s.rulesets {
+		rs.Rules = slices.Clone(rs.Rules)
+		rs.Tags = slices.Clone(rs.Tags)
+		rulesets[k] = rs
+	}
+
 	return &snapshot{
-		config:   s.config.Clone(),
-		programs: maps.Clone(s.programs),
-		parents:  maps.Clone(s.parents),
+		rules:         rules,
+		programs:      maps.Clone(s.programs),
+		parents:       maps.Clone(s.parents),
+		rulesets:      rulesets,
+		globals:       config.CloneAnyMap(s.globals),
+		errorMessages: maps.Clone(s.errorMessages),
 	}
 }
 
-// RuleEngine evaluates CEL rules and rulesets. It is safe for concurrent use.
-//
-// Evaluations are lock-free: they load an immutable snapshot, so a slow evaluation never
-// blocks writers and a pending writer never blocks new evaluations. Writers (Upsert*/Remove*)
-// are serialized and publish a new snapshot atomically; in-flight evaluations keep using the
-// snapshot they started with.
+// RuleEngine evaluates rules and rulesets using a pluggable Compiler.
+// Evaluations are stateless and lock-free; runtime mutations use copy-on-write snapshots.
 type RuleEngine struct {
-	writeMu    sync.Mutex
-	state      atomic.Pointer[snapshot]
-	env        *cel.Env
-	policy     Policy
-	optimise   bool
-	exhaustive bool
+	writeMu  sync.Mutex
+	state    atomic.Pointer[snapshot]
+	compiler Compiler
+	policy   Policy
+
+	optimise          bool
+	exhaustive        bool
+	initGlobals       map[string]any
+	initRules         map[string]Rule
+	initRulesets      map[string]Ruleset
+	initErrorMessages map[string]string
 }
 
-// Policy controls execution behavior such as fail-fast and timeout duration.
-type Policy struct {
-	StopOnFailure    bool
-	MaxExecutionTime time.Duration
-}
-
-// Option defines a function that configures a RuleEngine.
+// Option configures a RuleEngine.
 type Option func(*RuleEngine)
 
-// WithOptimise enables CEL AST optimization during rule compilation.
+// WithOptimise enables static optimization when constructing a CEL-backed RuleEngine.
 func WithOptimise() Option {
 	return func(re *RuleEngine) {
 		re.optimise = true
 	}
 }
 
-// WithExhaustiveEval disables CEL's short-circuiting of && and || so every sub-expression is
-// evaluated. This is slower and is mainly useful for debugging or state tracking.
+// WithExhaustiveEval disables short-circuiting of logical operators when constructing a CEL-backed RuleEngine.
 func WithExhaustiveEval() Option {
 	return func(re *RuleEngine) {
 		re.exhaustive = true
 	}
 }
 
-// NewRuleEngine creates a new RuleEngine instance from a YAML configuration file path.
-func NewRuleEngine(configPath string, environment string, env *cel.Env, opts ...Option) (*RuleEngine, error) {
-	config, err := NewRulesetConfig(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+// WithPolicy sets the execution policy (timeout and stop-on-failure behavior) for the engine.
+func WithPolicy(policy Policy) Option {
+	return func(re *RuleEngine) {
+		re.policy = policy
 	}
-	return NewRuleEngineFromConfig(config, environment, env, opts...)
 }
 
-// NewRuleEngineFromConfig creates a new RuleEngine instance from an in-memory RulesetConfig.
-// The provided configuration is deep-copied so subsequent caller mutations cannot affect the engine.
-func NewRuleEngineFromConfig(config *RulesetConfig, environment string, env *cel.Env, opts ...Option) (*RuleEngine, error) {
-	if config == nil {
-		return nil, errors.New("ruleset config is nil")
+// WithGlobals sets the initial global variables available to all rule evaluations.
+func WithGlobals(globals map[string]any) Option {
+	return func(re *RuleEngine) {
+		re.initGlobals = config.CloneAnyMap(globals)
 	}
-	if env == nil {
-		return nil, errors.New("cel env is nil")
-	}
+}
 
-	cfg := config.Clone()
-	if cfg.Globals == nil {
-		cfg.Globals = make(map[string]any)
+// WithRules sets the initial rule definitions to compile when constructing the engine.
+func WithRules(rules map[string]Rule) Option {
+	return func(re *RuleEngine) {
+		re.initRules = rules
 	}
-	if cfg.Rules == nil {
-		cfg.Rules = make(map[string]Rule)
-	}
-	if cfg.Rulesets == nil {
-		cfg.Rulesets = make(map[string]Ruleset)
-	}
-	if cfg.ErrorHandling.CustomErrorMessages == nil {
-		cfg.ErrorHandling.CustomErrorMessages = make(map[string]string)
-	}
+}
 
-	cfg.ApplyEnvironment(environment)
-
-	policy := Policy{
-		StopOnFailure:    true,
-		MaxExecutionTime: defaultMaxExecutionTime,
+// WithRulesets sets the initial ruleset definitions to validate when constructing the engine.
+func WithRulesets(rulesets map[string]Ruleset) Option {
+	return func(re *RuleEngine) {
+		re.initRulesets = rulesets
 	}
-	if cfg.ErrorHandling.ExecutionPolicy != "" || len(cfg.ExecutionPolicies) > 0 {
-		var err error
-		policy, err = cfg.ToExecutionPolicy()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get execution policy: %w", err)
-		}
+}
+
+// WithCustomErrorMessages sets custom failure messages keyed by rule or ruleset ID.
+func WithCustomErrorMessages(messages map[string]string) Option {
+	return func(re *RuleEngine) {
+		re.initErrorMessages = maps.Clone(messages)
+	}
+}
+
+// NewWithCompiler creates a new RuleEngine backed by any Compiler implementation,
+// completely decoupled from YAML configuration files and CEL.
+func NewWithCompiler(compiler Compiler, opts ...Option) (*RuleEngine, error) {
+	if compiler == nil {
+		return nil, errors.New("rule compiler cannot be nil")
 	}
 
 	engine := &RuleEngine{
-		env:    env,
-		policy: policy,
+		compiler: compiler,
+		policy: Policy{
+			StopOnFailure:    true,
+			MaxExecutionTime: defaultExecutionTimeout,
+		},
 	}
 	for _, opt := range opts {
 		opt(engine)
 	}
 
-	snap, err := engine.buildSnapshot(cfg)
+	initial, err := engine.buildSnapshot(
+		engine.initRules,
+		engine.initRulesets,
+		engine.initGlobals,
+		engine.initErrorMessages,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compile rules: %w", err)
+		return nil, err
 	}
-	engine.state.Store(snap)
+	engine.state.Store(initial)
+	engine.initRules = nil
+	engine.initRulesets = nil
+	engine.initGlobals = nil
+	engine.initErrorMessages = nil
 
 	return engine, nil
+}
+
+// NewRuleEngine creates a new RuleEngine from a YAML configuration file path and a CEL environment.
+func NewRuleEngine(configPath string, environment string, env *celgo.Env, opts ...Option) (*RuleEngine, error) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load ruleset config: %w", err)
+	}
+	return NewRuleEngineFromConfig(cfg, environment, env, opts...)
+}
+
+// NewRuleEngineFromConfig creates a new RuleEngine from an in-memory RulesetConfig and a CEL environment.
+// The provided config is deep-copied so subsequent external mutations do not affect the engine.
+func NewRuleEngineFromConfig(cfg *RulesetConfig, environment string, env *celgo.Env, opts ...Option) (*RuleEngine, error) {
+	if cfg == nil {
+		return nil, errors.New("ruleset config cannot be nil")
+	}
+	if env == nil {
+		return nil, errors.New("cel environment cannot be nil")
+	}
+
+	cloned := cfg.Clone()
+	if environment != "" {
+		cloned.ApplyEnvironment(environment)
+	}
+
+	policy, err := cloned.ToExecutionPolicy()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get execution policy: %w", err)
+	}
+
+	// Probe options for CEL compiler flags before constructing the compiler.
+	probe := &RuleEngine{}
+	for _, opt := range opts {
+		opt(probe)
+	}
+	var celOpts []cel.Option
+	if probe.optimise {
+		celOpts = append(celOpts, cel.WithOptimise())
+	}
+	if probe.exhaustive {
+		celOpts = append(celOpts, cel.WithExhaustiveEval())
+	}
+
+	compiler, err := cel.NewCompiler(env, celOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	engineOpts := make([]Option, 0, len(opts)+5)
+	engineOpts = append(engineOpts,
+		WithPolicy(policy),
+		WithGlobals(cloned.Globals),
+		WithRules(cloned.Rules),
+		WithRulesets(cloned.Rulesets),
+		WithCustomErrorMessages(cloned.ErrorHandling.CustomErrorMessages),
+	)
+	engineOpts = append(engineOpts, opts...)
+
+	return NewWithCompiler(compiler, engineOpts...)
 }

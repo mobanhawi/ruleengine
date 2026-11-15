@@ -6,22 +6,28 @@ import (
 	"slices"
 )
 
-// ValidateExpression compiles and type-checks a candidate CEL expression against the engine's CEL environment.
+// ValidateExpression checks whether an expression compiles cleanly and returns a boolean.
 func (re *RuleEngine) ValidateExpression(expression string) error {
-	_, err := re.compileExpression(expression)
+	if expression == "" {
+		return errors.New("expression cannot be empty")
+	}
+	_, err := re.compiler.Compile(expression)
 	return err
 }
 
-// UpsertRule compiles and registers or updates a rule at runtime.
-func (re *RuleEngine) UpsertRule(id string, rule Rule) error {
-	if id == "" {
-		return errors.New("rule id cannot be empty")
+// UpsertRule compiles and registers (or updates) a rule at runtime using copy-on-write.
+// In-flight evaluations continue reading the previous snapshot without blocking.
+func (re *RuleEngine) UpsertRule(ruleID string, rule Rule) error {
+	if ruleID == "" {
+		return errors.New("rule ID cannot be empty")
+	}
+	if rule.Expression == "" {
+		return fmt.Errorf("rule %q expression cannot be empty", ruleID)
 	}
 
-	// Compile outside the write lock: cel.Env is safe for concurrent use.
-	program, err := re.compileExpression(rule.Expression)
+	evalFn, err := re.compiler.Compile(rule.Expression)
 	if err != nil {
-		return fmt.Errorf("compiling rule %q: %w", id, err)
+		return fmt.Errorf("compiling rule %q: %w", ruleID, err)
 	}
 
 	re.writeMu.Lock()
@@ -29,92 +35,93 @@ func (re *RuleEngine) UpsertRule(id string, rule Rule) error {
 
 	next := re.state.Load().clone()
 	rule.Tags = slices.Clone(rule.Tags)
-	next.config.Rules[id] = rule
+	next.rules[ruleID] = rule
+	next.programs[ruleID] = evalFn
 
-	parents, err := resolveAllParents(next.config.Rules)
+	parents, err := resolveAllParents(next.rules)
 	if err != nil {
-		return fmt.Errorf("upserting rule %q: %w", id, err)
+		return err
 	}
-	next.programs[id] = program
 	next.parents = parents
 
 	re.state.Store(next)
 	return nil
 }
 
-// RemoveRule deletes a rule (and its custom error message) if it is not extended by
-// another rule or referenced by a ruleset.
-func (re *RuleEngine) RemoveRule(id string) error {
+// RemoveRule deletes a rule by ID if it is not referenced by any child rule or ruleset.
+// Any custom error message registered for the rule is also removed.
+func (re *RuleEngine) RemoveRule(ruleID string) error {
 	re.writeMu.Lock()
 	defer re.writeMu.Unlock()
 
-	current := re.state.Load()
-	if _, exists := current.config.Rules[id]; !exists {
-		return fmt.Errorf("rule %q: %w", id, ErrRuleNotFound)
+	cur := re.state.Load()
+	if _, exists := cur.rules[ruleID]; !exists {
+		return fmt.Errorf("rule %q: %w", ruleID, ErrRuleNotFound)
 	}
-	for otherID, r := range current.config.Rules {
-		if r.Extends == id {
-			return fmt.Errorf("rule %q is extended by rule %q: %w", id, otherID, ErrRuleInUse)
+
+	for otherID, otherRule := range cur.rules {
+		if otherID != ruleID && otherRule.Extends == ruleID {
+			return fmt.Errorf("cannot remove rule %q: extended by rule %q: %w", ruleID, otherID, ErrRuleInUse)
 		}
 	}
-	for rsID, rs := range current.config.Rulesets {
-		if slices.Contains(rs.Rules, id) {
-			return fmt.Errorf("rule %q is referenced by ruleset %q: %w", id, rsID, ErrRuleInUse)
+	for rsID, rs := range cur.rulesets {
+		if slices.Contains(rs.Rules, ruleID) {
+			return fmt.Errorf("cannot remove rule %q: referenced by ruleset %q: %w", ruleID, rsID, ErrRuleInUse)
 		}
 	}
 
-	next := current.clone()
-	delete(next.config.Rules, id)
-	delete(next.config.ErrorHandling.CustomErrorMessages, id)
-	delete(next.programs, id)
-	delete(next.parents, id)
+	next := cur.clone()
+	delete(next.rules, ruleID)
+	delete(next.programs, ruleID)
+	delete(next.parents, ruleID)
+	delete(next.errorMessages, ruleID)
 
 	re.state.Store(next)
 	return nil
 }
 
-// UpsertRuleset validates and registers or updates a ruleset at runtime.
-func (re *RuleEngine) UpsertRuleset(id string, ruleset Ruleset) error {
-	if id == "" {
-		return errors.New("ruleset id cannot be empty")
+// UpsertRuleset registers or updates a ruleset after verifying its selector and rule references.
+func (re *RuleEngine) UpsertRuleset(rulesetID string, ruleset Ruleset) error {
+	if rulesetID == "" {
+		return errors.New("ruleset ID cannot be empty")
 	}
 
 	re.writeMu.Lock()
 	defer re.writeMu.Unlock()
 
-	current := re.state.Load()
-	if err := validateRuleset(id, ruleset, current.config.Rules); err != nil {
+	cur := re.state.Load()
+	if err := validateRuleset(rulesetID, ruleset, cur.rules); err != nil {
 		return err
 	}
 
-	next := current.clone()
+	next := cur.clone()
 	ruleset.Rules = slices.Clone(ruleset.Rules)
 	ruleset.Tags = slices.Clone(ruleset.Tags)
-	next.config.Rulesets[id] = ruleset
+	next.rulesets[rulesetID] = ruleset
 
 	re.state.Store(next)
 	return nil
 }
 
-// ListRules returns a snapshot copy of all configured rules.
+// ListRules returns a deep copy of all currently registered rules.
 func (re *RuleEngine) ListRules() map[string]Rule {
-	s := re.state.Load()
-	out := make(map[string]Rule, len(s.config.Rules))
-	for k, v := range s.config.Rules {
-		v.Tags = slices.Clone(v.Tags)
-		out[k] = v
+	snap := re.state.Load()
+	out := make(map[string]Rule, len(snap.rules))
+	for k, r := range snap.rules {
+		r.Tags = slices.Clone(r.Tags)
+		out[k] = r
 	}
 	return out
 }
 
-// ListRulesets returns a snapshot copy of all configured rulesets.
+// ListRulesets returns a deep copy of all currently registered rulesets.
 func (re *RuleEngine) ListRulesets() map[string]Ruleset {
-	s := re.state.Load()
-	out := make(map[string]Ruleset, len(s.config.Rulesets))
-	for k, v := range s.config.Rulesets {
-		v.Rules = slices.Clone(v.Rules)
-		v.Tags = slices.Clone(v.Tags)
-		out[k] = v
+	snap := re.state.Load()
+	out := make(map[string]Ruleset, len(snap.rulesets))
+	for k, rs := range snap.rulesets {
+		rs.Rules = slices.Clone(rs.Rules)
+		rs.Tags = slices.Clone(rs.Tags)
+		out[k] = rs
 	}
 	return out
 }

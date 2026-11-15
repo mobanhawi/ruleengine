@@ -1647,3 +1647,81 @@ func TestConcurrentEvaluations(t *testing.T) {
 		wg.Wait()
 	})
 }
+
+type stubKeyMatchCompiler struct{}
+
+func (stubKeyMatchCompiler) Compile(expression string) (EvalFunc, error) {
+	if expression == "invalid" {
+		return nil, ErrNonBooleanExpression
+	}
+	return func(_ context.Context, vars map[string]any) (bool, error) {
+		val, exists := vars[expression]
+		if !exists {
+			return false, errors.New("missing key: " + expression)
+		}
+		b, ok := val.(bool)
+		if !ok {
+			return false, ErrNonBooleanExpression
+		}
+		return b, nil
+	}, nil
+}
+
+func TestNewWithCompiler(t *testing.T) {
+	t.Run("GivenNilCompiler_WhenNewWithCompiler_ThenReturnsError", func(t *testing.T) {
+		if _, err := NewWithCompiler(nil); err == nil {
+			t.Fatal("NewWithCompiler(nil) expected error, got nil")
+		}
+	})
+
+	t.Run("GivenCustomCompilerWithoutConfigOrCEL_WhenEvaluated_ThenExecutesRulesAndInheritance", func(t *testing.T) {
+		engine, err := NewWithCompiler(
+			stubKeyMatchCompiler{},
+			WithPolicy(Policy{StopOnFailure: true, MaxExecutionTime: time.Second}),
+			WithGlobals(map[string]any{"feature_enabled": true}),
+			WithRules(map[string]Rule{
+				"has_account": {
+					Name:       "Has Account",
+					Expression: "has_account",
+				},
+				"is_verified": {
+					Name:       "Is Verified",
+					Extends:    "has_account",
+					Expression: "is_verified",
+				},
+			}),
+			WithRulesets(map[string]Ruleset{
+				"access_check": {
+					Name:     "Access Check",
+					Selector: SelectorAnd,
+					Rules:    []string{"is_verified"},
+				},
+			}),
+			WithCustomErrorMessages(map[string]string{
+				"is_verified": "verification required",
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewWithCompiler() error = %v", err)
+		}
+
+		passRes, err := engine.EvaluateRuleset(context.Background(), "access_check", map[string]any{
+			"has_account": true,
+			"is_verified": true,
+		})
+		if err != nil || !passRes.Passed {
+			t.Fatalf("EvaluateRuleset(access_check) got (%+v, %v), want Passed=true", passRes, err)
+		}
+
+		failRes, err := engine.EvaluateRule(context.Background(), "is_verified", map[string]any{
+			"has_account": true,
+			"is_verified": false,
+		})
+		if err != nil || failRes.Passed {
+			t.Fatalf("EvaluateRule(is_verified) got (%+v, %v), want Passed=false", failRes, err)
+		}
+		if failRes.Error == nil || failRes.Error.Error() != "verification required" {
+			t.Errorf("failRes.Error = %v, want %q", failRes.Error, "verification required")
+		}
+	})
+}

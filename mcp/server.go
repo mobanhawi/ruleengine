@@ -18,11 +18,23 @@ const (
 	notPersistedNote = " Changes are held in memory only and are lost when the server restarts."
 )
 
+// Engine defines the rule evaluation and management contract consumed by the MCP Server.
+type Engine interface {
+	EvaluateRule(ctx context.Context, ruleName string, input map[string]any) (ruleengine.RuleResult, error)
+	EvaluateRuleset(ctx context.Context, rulesetName string, input map[string]any) (ruleengine.RulesetResult, error)
+	EvaluateAllRulesets(ctx context.Context, input map[string]any) (map[string]ruleengine.RulesetResult, error)
+	ValidateExpression(expression string) error
+	UpsertRule(ruleID string, rule ruleengine.Rule) error
+	UpsertRuleset(rulesetID string, ruleset ruleengine.Ruleset) error
+	ListRules() map[string]ruleengine.Rule
+	ListRulesets() map[string]ruleengine.Ruleset
+}
+
 // Server exposes a RuleEngine over the Model Context Protocol (MCP) using the official Go SDK.
 // By default the server is read-only: rule authoring tools (upsert_rule, upsert_ruleset) are
 // omitted unless WithAuthoring is passed to NewServer.
 type Server struct {
-	engine         *ruleengine.RuleEngine
+	engine         Engine
 	mcpServer      *mcpsdk.Server
 	allowAuthoring bool
 }
@@ -38,8 +50,8 @@ func WithAuthoring() Option {
 	}
 }
 
-// NewServer creates a new MCP Server backed by the provided RuleEngine.
-func NewServer(engine *ruleengine.RuleEngine, opts ...Option) *Server {
+// NewServer creates a new MCP Server backed by the provided Engine.
+func NewServer(engine Engine, opts ...Option) *Server {
 	s := &Server{
 		engine: engine,
 		mcpServer: mcpsdk.NewServer(&mcpsdk.Implementation{

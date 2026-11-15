@@ -2,38 +2,54 @@ package ruleengine
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
-	"github.com/google/cel-go/cel"
+	"github.com/mobanhawi/ruleengine/config"
 )
 
-// defaultInterruptCheckFrequency is how many comprehension iterations CEL runs between
-// context cancellation checks during ContextEval.
-const defaultInterruptCheckFrequency = 100
-
-// buildSnapshot compiles every rule, resolves inheritance and validates rulesets for cfg.
-func (re *RuleEngine) buildSnapshot(cfg *RulesetConfig) (*snapshot, error) {
-	programs := make(map[string]cel.Program, len(cfg.Rules))
-	for name, rule := range cfg.Rules {
-		program, err := re.compileExpression(rule.Expression)
+// buildSnapshot compiles every rule via re.compiler, resolves inheritance, and validates rulesets.
+func (re *RuleEngine) buildSnapshot(
+	rules map[string]Rule,
+	rulesets map[string]Ruleset,
+	globals map[string]any,
+	errorMessages map[string]string,
+) (*snapshot, error) {
+	clonedRules := make(map[string]Rule, len(rules))
+	programs := make(map[string]EvalFunc, len(rules))
+	for name, rule := range rules {
+		evalFn, err := re.compiler.Compile(rule.Expression)
 		if err != nil {
 			return nil, fmt.Errorf("failed to compile program for rule '%s': %w", name, err)
 		}
-		programs[name] = program
+		rule.Tags = slices.Clone(rule.Tags)
+		clonedRules[name] = rule
+		programs[name] = evalFn
 	}
 
-	parents, err := resolveAllParents(cfg.Rules)
+	parents, err := resolveAllParents(clonedRules)
 	if err != nil {
 		return nil, err
 	}
 
-	for id, ruleset := range cfg.Rulesets {
-		if err := validateRuleset(id, ruleset, cfg.Rules); err != nil {
+	clonedRulesets := make(map[string]Ruleset, len(rulesets))
+	for id, ruleset := range rulesets {
+		if err := validateRuleset(id, ruleset, clonedRules); err != nil {
 			return nil, fmt.Errorf("invalid ruleset %q: %w", id, err)
 		}
+		ruleset.Rules = slices.Clone(ruleset.Rules)
+		ruleset.Tags = slices.Clone(ruleset.Tags)
+		clonedRulesets[id] = ruleset
 	}
 
-	return &snapshot{config: cfg, programs: programs, parents: parents}, nil
+	return &snapshot{
+		rules:         clonedRules,
+		programs:      programs,
+		parents:       parents,
+		rulesets:      clonedRulesets,
+		globals:       config.CloneAnyMap(globals),
+		errorMessages: maps.Clone(errorMessages),
+	}, nil
 }
 
 func validateRuleset(id string, ruleset Ruleset, rules map[string]Rule) error {
@@ -52,36 +68,6 @@ func validateRuleset(id string, ruleset Ruleset, rules map[string]Rule) error {
 		}
 	}
 	return nil
-}
-
-func (re *RuleEngine) compileExpression(expression string) (cel.Program, error) {
-	ast, issues := re.env.Compile(expression)
-	if issues != nil && issues.Err() != nil {
-		return nil, fmt.Errorf("failed to compile expression '%s': %w", expression, issues.Err())
-	}
-
-	outType := ast.OutputType()
-	if outType != cel.BoolType && outType != cel.DynType {
-		return nil, fmt.Errorf("expression %q returns %s: %w", expression, outType, ErrNonBooleanExpression)
-	}
-
-	var evalOpts cel.EvalOption
-	if re.exhaustive {
-		evalOpts |= cel.OptExhaustiveEval
-	}
-	if re.optimise {
-		evalOpts |= cel.OptOptimize
-	}
-	programOpts := []cel.ProgramOption{cel.InterruptCheckFrequency(defaultInterruptCheckFrequency)}
-	if evalOpts != 0 {
-		programOpts = append(programOpts, cel.EvalOptions(evalOpts))
-	}
-
-	program, err := re.env.Program(ast, programOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create program for expression '%s': %w", expression, err)
-	}
-	return program, nil
 }
 
 // resolveAllParents computes the ancestor chain for every rule, failing on cycles or missing parents.

@@ -14,19 +14,18 @@ A concurrency-safe, configurable rule engine in Go powered by [CEL (Common Expre
 
 ## Package Structure
 
-| File | Responsibility |
+| Package / File | Responsibility |
 |------|----------------|
-| `ruleengine.go` | `RuleEngine`, `Policy`, `Option`s (`WithOptimise`, `WithExhaustiveEval`), constructors, and atomic snapshot state |
-| `evaluate.go` | `EvaluateRule`, `EvaluateRuleset`, `EvaluateAllRulesets`, combinator tally/short-circuiting, and deadline checks |
-| `compile.go` | CEL compilation, boolean output-type verification, ruleset validation, and top-down parent resolution |
+| `compiler.go` | `Compiler` interface and `EvalFunc` abstraction decoupling the engine from CEL |
+| `ruleengine.go` | `RuleEngine`, `Option`s (`WithPolicy`, `WithGlobals`, `WithRules`, `WithRulesets`, `WithCustomErrorMessages`, `WithOptimise`, `WithExhaustiveEval`), config-free `NewWithCompiler`, and convenience constructors |
+| `evaluate.go` | Lock-free `EvaluateRule`, `EvaluateRuleset`, `EvaluateAllRulesets`, combinator tally/short-circuiting, and deadline checks |
+| `compile.go` | Config-free `snapshot` builder, ruleset validation, and top-down parent inheritance resolution |
 | `manage.go` | Copy-on-write runtime mutation & introspection (`ValidateExpression`, `UpsertRule`, `RemoveRule`, `UpsertRuleset`, `ListRules`, `ListRulesets`) |
-| `config.go` | YAML configuration types, deep `Clone`, environment overrides, and `io.Reader` / `[]byte` loaders |
-| `env.go` | `NewDefaultEnv` with `globals` and built-in `timestamp()` / `now()` CEL functions |
 | `rules.go` | `RuleResult`, `RulesetResult`, and JSON marshaling |
-| `errors.go` | Sentinel errors (`ErrPolicyNotFound`, `ErrRuleNotFound`, `ErrRulesetNotFound`, `ErrCircularDependency`, `ErrRuleInUse`, `ErrNonBooleanExpression`, `ErrInvalidSelector`, `ErrInvalidMinPassed`) |
-| `mcp/server.go` | MCP server wrapper around `github.com/modelcontextprotocol/go-sdk/mcp` (read-only by default; opt-in `WithAuthoring()`) |
-| `mcp/tools.go` | Typed tool input structs with `jsonschema` tags and tool registration |
-| `mcp/handlers.go` | Typed MCP tool handlers |
+| `config.go` / `env.go` / `errors.go` | Root re-exports of configuration types/loaders, `NewDefaultEnv`, and sentinel errors |
+| `cel/compiler.go` & `cel/env.go` | `cel.Compiler` implementation (`Compile(string) (EvalFunc, error)`) and `cel.NewDefaultEnv` |
+| `config/config.go` | YAML/JSON configuration types (`RulesetConfig`, `Rule`, `Ruleset`, `Policy`), deep `Clone()`, environment overrides, and `Load*` helpers |
+| `mcp/server.go`, `mcp/tools.go`, `mcp/handlers.go` | MCP server wrapper around `github.com/modelcontextprotocol/go-sdk/mcp` accepting a consumer-defined `mcp.Engine` interface |
 
 ## Programmatic Usage
 
