@@ -1,129 +1,34 @@
 package ruleengine
 
-import (
-	"fmt"
-	"os"
-	"time"
+import "github.com/mobanhawi/ruleengine/config"
 
-	"gopkg.in/yaml.v3"
+const (
+	// SelectorAnd requires all rules in a ruleset to pass.
+	SelectorAnd = config.SelectorAnd
+	// SelectorOr requires at least one rule in a ruleset to pass.
+	SelectorOr = config.SelectorOr
+	// SelectorNone requires zero rules in a ruleset to pass (logical NOR).
+	SelectorNone = config.SelectorNone
 )
 
-// RulesetConfig is the top-level configuration structure
-type RulesetConfig struct {
-	APIVersion        string                     `yaml:"apiVersion"`
-	Kind              string                     `yaml:"kind"`
-	Metadata          Metadata                   `yaml:"metadata"`
-	Globals           map[string]interface{}     `yaml:"globals"`
-	Rules             map[string]Rule            `yaml:"rules"`
-	Rulesets          map[string]Ruleset         `yaml:"rulesets"`
-	ExecutionPolicies map[string]ExecutionPolicy `yaml:"execution_policies"`
-	ErrorHandling     ErrorHandling              `yaml:"error_handling"`
-	Environments      map[string]Environment     `yaml:"environments"`
-}
+// Type aliases re-exporting configuration and domain types from ruleengine/config.
+type (
+	SelectorType    = config.SelectorType
+	Policy          = config.Policy
+	RulesetConfig   = config.RulesetConfig
+	Rule            = config.Rule
+	Ruleset         = config.Ruleset
+	Metadata        = config.Metadata
+	ExecutionPolicy = config.ExecutionPolicy
+	ErrorHandling   = config.ErrorHandling
+	Environment     = config.Environment
+)
 
-// Rule represents an individual rule with its properties
-type Rule struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Expression  string `yaml:"expression"`
-	Extends     string `yaml:"extends"`
-}
-
-// Ruleset represents a collection of rules and their evaluation logic
-type Ruleset struct {
-	Name        string       `yaml:"name"`
-	Description string       `yaml:"description"`
-	Selector    selectorType `yaml:"selector"`
-	Rules       []string     `yaml:"rules"`
-}
-
-type selectorType string
-
-// Metadata contains basic information about the ruleset configuration
-type Metadata struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-}
-
-// ExecutionPolicy defines how rulesets should be executed
-type ExecutionPolicy struct {
-	Name             string `yaml:"name"`
-	Description      string `yaml:"description"`
-	StopOnFailure    bool   `yaml:"stop_on_failure"`
-	MaxExecutionTime string `yaml:"max_execution_time"`
-}
-
-// ErrorHandling defines error handling settings for the rule engine
-type ErrorHandling struct {
-	ExecutionPolicy     string            `yaml:"execution_policy"`
-	CustomErrorMessages map[string]string `yaml:"custom_error_messages"`
-}
-
-// Environment defines settings for different execution environments
-type Environment struct {
-	Globals       map[string]interface{} `yaml:"globals"`
-	ErrorHandling ErrorHandling          `yaml:"error_handling"`
-}
-
-// NewRulesetConfig reads and parses the YAML configuration file
-// and returns a RulesetConfig instance
-func NewRulesetConfig(configPath string) (*RulesetConfig, error) {
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var config RulesetConfig
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &config, nil
-}
-
-// ApplyEnvironment applies environment-specific overrides to the configuration
-func (rc *RulesetConfig) ApplyEnvironment(environment string) {
-	// Apply environment-specific overrides
-	if envConfig, exists := rc.Environments[environment]; exists {
-		// Apply environment-specific globals
-		if envConfig.Globals != nil {
-			for k, v := range envConfig.Globals {
-				rc.Globals[k] = v
-			}
-		}
-		// Apply environment-specific error handling execution policy
-		if envConfig.ErrorHandling.ExecutionPolicy != "" {
-			rc.ErrorHandling.ExecutionPolicy = envConfig.ErrorHandling.ExecutionPolicy
-		}
-		// Apply environment-specific custom error messages
-		if envConfig.ErrorHandling.CustomErrorMessages != nil {
-			for k, v := range envConfig.ErrorHandling.CustomErrorMessages {
-				rc.ErrorHandling.CustomErrorMessages[k] = v
-			}
-		}
-	}
-}
-
-// ToExecutionPolicy maps the execution policy from on the current configuration
-func (rc *RulesetConfig) ToExecutionPolicy() (Policy, error) {
-	// Set up defaults execution policy
-	policy := Policy{
-		StopOnFailure:    true,
-		MaxExecutionTime: 5 * time.Second,
-	}
-
-	if configPolicy, ok := rc.ExecutionPolicies[rc.ErrorHandling.ExecutionPolicy]; ok {
-		if configPolicy.MaxExecutionTime != "" {
-			dur, err := time.ParseDuration(configPolicy.MaxExecutionTime)
-			if err != nil {
-				return policy, fmt.Errorf("invalid max_execution_time in execution policy: %w", err)
-			}
-			policy.MaxExecutionTime = dur
-		}
-		policy.StopOnFailure = configPolicy.StopOnFailure
-	} else {
-		return policy, fmt.Errorf("execution policy '%s' not found in config", rc.ErrorHandling.ExecutionPolicy)
-	}
-	return policy, nil
-}
+var (
+	// NewRulesetConfig loads and parses the YAML configuration file at configPath.
+	NewRulesetConfig = config.Load
+	// NewRulesetConfigFromReader loads a YAML/JSON configuration from an io.Reader.
+	NewRulesetConfigFromReader = config.LoadFromReader
+	// NewRulesetConfigFromBytes loads a YAML/JSON configuration from raw bytes.
+	NewRulesetConfigFromBytes = config.LoadFromBytes
+)

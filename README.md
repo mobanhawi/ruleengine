@@ -1,115 +1,108 @@
 # CEL Rule Engine
 
-This repository contains a configurable rule engine using [CEL (Common Expression Language)](https://opensource.google/projects/cel) for flexible business logic and validation.
+A concurrency-safe, configurable rule engine in Go powered by [CEL (Common Expression Language)](https://opensource.google/projects/cel) with YAML configuration, lock-free snapshot evaluation, programmatic rule management, and a built-in Model Context Protocol (MCP) server using the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk).
 
 ## Features
 
-- **YAML-based configuration** for rules, rulesets, execution policies, and environment overrides
-- **CEL expressions** for powerful, type-safe rule logic
-- **Customizable error handling and logging** 
-- **Environment-specific overrides** for development and production
+- **Lock-Free, Concurrency-Safe Evaluation**: Readers load an immutable compiled snapshot via `atomic.Pointer` while writers (`UpsertRule`, `UpsertRuleset`, `RemoveRule`) publish copy-on-write snapshots without blocking in-flight evaluations.
+- **Consistent `context.Context` & Timeout Enforcement**: Enforces both caller deadlines and `Policy.MaxExecutionTime` across `EvaluateRule`, `EvaluateRuleset`, and `EvaluateAllRulesets`, interrupting long-running CEL comprehensions via `cel.InterruptCheckFrequency`.
+- **Distinct Business Failures vs. Runtime Evaluation Errors**: `RuleResult.Error` carries the business failure message while `RuleResult.EvalError` records runtime CEL errors, ensuring `NONE` rulesets fail closed when a rule cannot be evaluated.
+- **YAML & Programmatic Configuration**: Load rules from YAML files, `io.Reader`, `[]byte`, or construct/mutate rules and rulesets dynamically at runtime.
+- **Rule Inheritance (`extends`)**: Compose hierarchical rules evaluated top-down from root ancestor to child with compile-time cycle detection.
+- **Rich Ruleset Combinators**: Combine rules using `AND`, `OR`, `NONE` (logical NOR, fail-closed), or `min_passed` ($N$-of-$M$ threshold) selectors.
+- **Official MCP Go SDK Server**: Expose rule evaluation, expression validation, and opt-in runtime rule authoring to AI agents (`cmd/ruleengine-mcp`).
 
-## Example: Defining Rules
+## Package Structure
 
-Rules are defined in `rules.yml` under the `rules:` section.  
-Example:
+| Package / File | Responsibility |
+|------|----------------|
+| `compiler.go` | `Compiler` interface and `EvalFunc` abstraction decoupling the engine from CEL |
+| `ruleengine.go` | `RuleEngine`, `Option`s (`WithPolicy`, `WithGlobals`, `WithRules`, `WithRulesets`, `WithCustomErrorMessages`, `WithOptimise`, `WithExhaustiveEval`), config-free `NewWithCompiler`, and convenience constructors |
+| `evaluate.go` | Lock-free `EvaluateRule`, `EvaluateRuleset`, `EvaluateAllRulesets`, combinator tally/short-circuiting, and deadline checks |
+| `compile.go` | Config-free `snapshot` builder, ruleset validation, and top-down parent inheritance resolution |
+| `manage.go` | Copy-on-write runtime mutation & introspection (`ValidateExpression`, `UpsertRule`, `RemoveRule`, `UpsertRuleset`, `ListRules`, `ListRulesets`) |
+| `rules.go` | `RuleResult`, `RulesetResult`, and JSON marshaling |
+| `config.go` / `env.go` / `errors.go` | Root re-exports of configuration types/loaders, `NewDefaultEnv`, and sentinel errors |
+| `cel/compiler.go` & `cel/env.go` | `cel.Compiler` implementation (`Compile(string) (EvalFunc, error)`) and `cel.NewDefaultEnv` |
+| `config/config.go` | YAML/JSON configuration types (`RulesetConfig`, `Rule`, `Ruleset`, `Policy`), deep `Clone()`, environment overrides, and `Load*` helpers |
+| `mcp/server.go`, `mcp/tools.go`, `mcp/handlers.go` | MCP server wrapper around `github.com/modelcontextprotocol/go-sdk/mcp` accepting a consumer-defined `mcp.Engine` interface |
 
-```yaml
-rules:
-  age_validation:
-    name: "Age Validation"
-    description: "Validates user age requirements"
-    expression: "user.age >= globals.min_age"
+## Programmatic Usage
 
-  email_format:
-    name: "Email Format Check"
-    description: "Validates email format using regex"
-    expression: |
-      user.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/mobanhawi/ruleengine"
+)
+
+func main() {
+	env, err := ruleengine.NewDefaultEnv("user", "request")
+	if err != nil {
+		panic(err)
+	}
+
+	engine, err := ruleengine.NewRuleEngineFromConfig(&ruleengine.RulesetConfig{
+		Globals: map[string]any{"min_age": 18},
+	}, "production", env, ruleengine.WithOptimise())
+	if err != nil {
+		panic(err)
+	}
+
+	_ = engine.UpsertRule("is_adult", ruleengine.Rule{
+		Name:       "Adult Check",
+		Expression: "user.age >= globals.min_age",
+	})
+	_ = engine.UpsertRuleset("onboarding", ruleengine.Ruleset{
+		Name:     "Onboarding",
+		Selector: ruleengine.SelectorAnd,
+		Rules:    []string{"is_adult"},
+	})
+
+	result, err := engine.EvaluateRuleset(context.Background(), "onboarding", map[string]any{
+		"user": map[string]any{"age": 21},
+	})
+	fmt.Printf("Passed: %v (err: %v)\n", result.Passed, err)
+}
 ```
 
-## Example: Combining Rules
+## MCP Server (`cmd/ruleengine-mcp`)
 
-Rulesets allow you to combine multiple rules using logical operators:
+Build and run the standalone MCP server over stdio:
 
-```yaml
-rulesets:
-  user_registration:
-    name: "User Registration Validation"
-    description: "All rules must pass for successful registration"
-    combination_type: "AND" # OR is allowed, default is AND
-    rules:
-      - age_validation
-      - email_format
-      - user_status
+```bash
+go build -o bin/ruleengine-mcp ./cmd/ruleengine-mcp
 ```
 
-## Execution Policies
+By default, `ruleengine-mcp` starts in **read-only mode** (exposing only evaluation, validation, and listing tools). Pass `-allow-authoring` to enable `upsert_rule` and `upsert_ruleset` (in-memory only; changes are not persisted across restarts):
 
-Control how rules are executed:
-
-```yaml
-execution_policies:
-  fail_fast:
-    name: "Fail Fast Execution"
-    stop_on_failure: true
-
-  collect_all:
-    name: "Collect All Results"
-    stop_on_failure: false
-    collect_errors: true
+```json
+{
+  "mcpServers": {
+    "ruleengine": {
+      "command": "/path/to/bin/ruleengine-mcp",
+      "args": ["-config", "/path/to/rules.yml", "-env", "development", "-vars", "user,request"]
+    }
+  }
+}
 ```
 
-## Error Handling
+### Exposed MCP Tools
+| Tool | Mode | Description |
+|------|------|-------------|
+| `evaluate_rule` | Read-only | Evaluate a single rule by `rule_name` against an `input` object |
+| `evaluate_ruleset` | Read-only | Evaluate a ruleset by `ruleset_name` against an `input` object |
+| `evaluate_all_rulesets` | Read-only | Evaluate all configured rulesets against an `input` object |
+| `validate_expression` | Read-only | Compile and verify that a CEL `expression` returns `bool` |
+| `list_rules` | Read-only | List all configured rules, expressions, and parent inheritance |
+| `list_rulesets` | Read-only | List all configured rulesets and combinator selectors |
+| `upsert_rule` | `-allow-authoring` | Dynamically compile and register/update a rule in memory |
+| `upsert_ruleset` | `-allow-authoring` | Dynamically register/update a ruleset in memory |
 
-Customize error handling and logging:
-
-```yaml
-error_handling:
-  execution_policy: "collect_all"
-  custom_error_messages:
-    age_validation: "User must be at least 18 years old"
-    email_format: "Please provide a valid email address"
-    domain_whitelist: "Email domain is not allowed"
-    business_hours: "Service only available during business hours (9 AM - 5 PM)"
-```
-
-## Environment Overrides
-
-Override globals and policies per environment:
-
-```yaml
-environments:
-  development:
-    globals:
-      min_age: 13 # Lower age requirement for testing
-
-  production:
-    globals:
-      min_age: 18
-    error_handling:
-      default_policy: "fail_fast"
-```
-
-## Usage
-
-To use the rule engine, load the configuration from `rules.yml`, set up the environment `cel.Env`, and evaluate rules against input data `context`.
-
-For more details, see the comments in `rules.yml` or consult the CEL documentation. 
-
-## Performance
-
-Using approximately 600 rules and 300 rulesets
-
-    goos: darwin
-    goarch: arm64
-    pkg: github.com/mobanhawi/ruleengine
-    cpu: Apple M1 Pro
-    BenchmarkRuleEngine_EvaluateAllRulesets
-    BenchmarkRuleEngine_EvaluateAllRulesets-8           	     601	   1902203 ns/op
-    BenchmarkNewRuleEngine
-    BenchmarkNewRuleEngine-8                            	      30	  39444917 ns/op
-    BenchmarkRuleEngineOptimise_EvaluateAllRulesets
-    BenchmarkRuleEngineOptimise_EvaluateAllRulesets-8   	    2580	    462594 ns/op
-    BenchmarkNewRuleEngineOptimise
-    BenchmarkNewRuleEngineOptimise-8                    	      28	  40634042 ns/op
+## Breaking Changes from `v0.0.3`
+- Removed stateful `SetContext`; `EvaluateRule`, `EvaluateRuleset`, and `EvaluateAllRulesets` now accept `(ctx context.Context, ..., input map[string]any)`.
+- Unknown ruleset `selector` values and combining `selector` with `min_passed` now fail validation (`ErrInvalidSelector` / `ErrInvalidMinPassed`) instead of silently falling back to `AND`.
+- Standard CEL short-circuiting (`&&` / `||`) is now enabled by default; use `WithExhaustiveEval()` when exhaustive state tracking is required.
