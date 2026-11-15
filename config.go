@@ -26,13 +26,6 @@ const (
 	defaultMaxExecutionTime = 5 * time.Second
 )
 
-var (
-	// ErrPolicyNotFound is returned when a referenced execution policy does not exist in config.
-	ErrPolicyNotFound = errors.New("execution policy not found")
-	// ErrInvalidSelector is returned when a ruleset specifies an unsupported selector value.
-	ErrInvalidSelector = errors.New("invalid ruleset selector")
-)
-
 // IsValid reports whether s is a supported ruleset selector (or empty, which defaults to AND).
 func (s SelectorType) IsValid() bool {
 	switch s {
@@ -54,69 +47,6 @@ type RulesetConfig struct {
 	ExecutionPolicies map[string]ExecutionPolicy `yaml:"execution_policies"`
 	ErrorHandling     ErrorHandling              `yaml:"error_handling"`
 	Environments      map[string]Environment     `yaml:"environments"`
-}
-
-// Clone returns a deep copy of the RulesetConfig so caller mutations cannot affect engine state.
-func (rc *RulesetConfig) Clone() *RulesetConfig {
-	if rc == nil {
-		return nil
-	}
-
-	cp := &RulesetConfig{
-		APIVersion:        rc.APIVersion,
-		Kind:              rc.Kind,
-		Metadata:          rc.Metadata,
-		Globals:           cloneAnyMap(rc.Globals),
-		Rules:             make(map[string]Rule, len(rc.Rules)),
-		Rulesets:          make(map[string]Ruleset, len(rc.Rulesets)),
-		ExecutionPolicies: maps.Clone(rc.ExecutionPolicies),
-		ErrorHandling: ErrorHandling{
-			ExecutionPolicy:     rc.ErrorHandling.ExecutionPolicy,
-			CustomErrorMessages: maps.Clone(rc.ErrorHandling.CustomErrorMessages),
-		},
-		Environments: make(map[string]Environment, len(rc.Environments)),
-	}
-
-	for k, r := range rc.Rules {
-		r.Tags = slices.Clone(r.Tags)
-		cp.Rules[k] = r
-	}
-	for k, rs := range rc.Rulesets {
-		rs.Rules = slices.Clone(rs.Rules)
-		rs.Tags = slices.Clone(rs.Tags)
-		cp.Rulesets[k] = rs
-	}
-	for k, env := range rc.Environments {
-		cp.Environments[k] = Environment{
-			Globals: cloneAnyMap(env.Globals),
-			ErrorHandling: ErrorHandling{
-				ExecutionPolicy:     env.ErrorHandling.ExecutionPolicy,
-				CustomErrorMessages: maps.Clone(env.ErrorHandling.CustomErrorMessages),
-			},
-		}
-	}
-
-	return cp
-}
-
-func cloneAnyMap(src map[string]any) map[string]any {
-	if src == nil {
-		return nil
-	}
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		switch typed := v.(type) {
-		case map[string]any:
-			dst[k] = cloneAnyMap(typed)
-		case []any:
-			dst[k] = slices.Clone(typed)
-		case []string:
-			dst[k] = slices.Clone(typed)
-		default:
-			dst[k] = v
-		}
-	}
-	return dst
 }
 
 // Rule represents an individual rule with its properties.
@@ -192,6 +122,77 @@ func NewRulesetConfigFromBytes(data []byte) (*RulesetConfig, error) {
 		return nil, fmt.Errorf("unmarshaling config yaml: %w", err)
 	}
 	return &config, nil
+}
+
+// Clone returns a deep copy of the RulesetConfig so caller mutations cannot affect engine state.
+func (rc *RulesetConfig) Clone() *RulesetConfig {
+	if rc == nil {
+		return nil
+	}
+
+	cp := &RulesetConfig{
+		APIVersion:        rc.APIVersion,
+		Kind:              rc.Kind,
+		Metadata:          rc.Metadata,
+		Globals:           cloneAnyMap(rc.Globals),
+		Rules:             make(map[string]Rule, len(rc.Rules)),
+		Rulesets:          make(map[string]Ruleset, len(rc.Rulesets)),
+		ExecutionPolicies: maps.Clone(rc.ExecutionPolicies),
+		ErrorHandling: ErrorHandling{
+			ExecutionPolicy:     rc.ErrorHandling.ExecutionPolicy,
+			CustomErrorMessages: maps.Clone(rc.ErrorHandling.CustomErrorMessages),
+		},
+		Environments: make(map[string]Environment, len(rc.Environments)),
+	}
+
+	for k, r := range rc.Rules {
+		r.Tags = slices.Clone(r.Tags)
+		cp.Rules[k] = r
+	}
+	for k, rs := range rc.Rulesets {
+		rs.Rules = slices.Clone(rs.Rules)
+		rs.Tags = slices.Clone(rs.Tags)
+		cp.Rulesets[k] = rs
+	}
+	for k, env := range rc.Environments {
+		cp.Environments[k] = Environment{
+			Globals: cloneAnyMap(env.Globals),
+			ErrorHandling: ErrorHandling{
+				ExecutionPolicy:     env.ErrorHandling.ExecutionPolicy,
+				CustomErrorMessages: maps.Clone(env.ErrorHandling.CustomErrorMessages),
+			},
+		}
+	}
+
+	return cp
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		dst[k] = cloneAny(v)
+	}
+	return dst
+}
+
+func cloneAny(v any) any {
+	switch typed := v.(type) {
+	case map[string]any:
+		return cloneAnyMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = cloneAny(item)
+		}
+		return out
+	case []string:
+		return slices.Clone(typed)
+	default:
+		return v
+	}
 }
 
 // ApplyEnvironment applies environment-specific overrides to the configuration.

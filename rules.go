@@ -9,21 +9,25 @@ import (
 type RuleResult struct {
 	// RuleName is the name of the evaluated rule.
 	RuleName string
-	// Passed indicates whether the rule evaluation was successful.
+	// Passed indicates whether the rule (and its full ancestor chain) evaluated to true.
 	Passed bool
-	// Error contains the reason for rule not passing or evaluation failure.
+	// Error is the business-facing failure message (custom or default) when Passed is false.
 	Error error
+	// EvalError is set when the rule could not be evaluated (e.g. missing field, type error,
+	// non-boolean result). A rule with EvalError is never Passed, and NONE rulesets fail closed on it.
+	EvalError error
 	// Duration is the time taken to evaluate the rule.
 	Duration time.Duration
 }
 
-// MarshalJSON serializes RuleResult with Error rendered as a string.
+// MarshalJSON serializes RuleResult with errors rendered as strings.
 func (r RuleResult) MarshalJSON() ([]byte, error) {
 	type ruleResultJSON struct {
-		RuleName string        `json:"rule_name"`
-		Passed   bool          `json:"passed"`
-		Error    string        `json:"error,omitempty"`
-		Duration time.Duration `json:"duration_ns"`
+		RuleName  string        `json:"rule_name"`
+		Passed    bool          `json:"passed"`
+		Error     string        `json:"error,omitempty"`
+		EvalError string        `json:"eval_error,omitempty"`
+		Duration  time.Duration `json:"duration_ns"`
 	}
 	out := ruleResultJSON{
 		RuleName: r.RuleName,
@@ -32,6 +36,9 @@ func (r RuleResult) MarshalJSON() ([]byte, error) {
 	}
 	if r.Error != nil {
 		out.Error = r.Error.Error()
+	}
+	if r.EvalError != nil {
+		out.EvalError = r.EvalError.Error()
 	}
 	return json.Marshal(out)
 }

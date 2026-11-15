@@ -1,44 +1,32 @@
 # CEL Rule Engine
 
-A concurrency-safe, configurable rule engine in Go powered by [CEL (Common Expression Language)](https://opensource.google/projects/cel) with YAML configuration, programmatic rule management, and a built-in Model Context Protocol (MCP) server.
+A concurrency-safe, configurable rule engine in Go powered by [CEL (Common Expression Language)](https://opensource.google/projects/cel) with YAML configuration, lock-free snapshot evaluation, programmatic rule management, and a built-in Model Context Protocol (MCP) server using the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk).
 
 ## Features
 
-- **Stateless, Concurrency-Safe Evaluation**: Evaluate rules and rulesets safely across concurrent goroutines with `context.Context` cancellation and timeout propagation.
+- **Lock-Free, Concurrency-Safe Evaluation**: Readers load an immutable compiled snapshot via `atomic.Pointer` while writers (`UpsertRule`, `UpsertRuleset`, `RemoveRule`) publish copy-on-write snapshots without blocking in-flight evaluations.
+- **Consistent `context.Context` & Timeout Enforcement**: Enforces both caller deadlines and `Policy.MaxExecutionTime` across `EvaluateRule`, `EvaluateRuleset`, and `EvaluateAllRulesets`, interrupting long-running CEL comprehensions via `cel.InterruptCheckFrequency`.
+- **Distinct Business Failures vs. Runtime Evaluation Errors**: `RuleResult.Error` carries the business failure message while `RuleResult.EvalError` records runtime CEL errors, ensuring `NONE` rulesets fail closed when a rule cannot be evaluated.
 - **YAML & Programmatic Configuration**: Load rules from YAML files, `io.Reader`, `[]byte`, or construct/mutate rules and rulesets dynamically at runtime.
 - **Rule Inheritance (`extends`)**: Compose hierarchical rules evaluated top-down from root ancestor to child with compile-time cycle detection.
-- **Rich Ruleset Combinators**: Combine rules using `AND`, `OR`, `NONE` (logical NOR), or `min_passed` ($N$-of-$M$ threshold) selectors.
-- **Model Context Protocol (MCP) Server**: Expose rule evaluation, expression validation, and runtime rule authoring to AI agents over JSON-RPC 2.0 stdio (`cmd/ruleengine-mcp`).
+- **Rich Ruleset Combinators**: Combine rules using `AND`, `OR`, `NONE` (logical NOR, fail-closed), or `min_passed` ($N$-of-$M$ threshold) selectors.
+- **Official MCP Go SDK Server**: Expose rule evaluation, expression validation, and opt-in runtime rule authoring to AI agents (`cmd/ruleengine-mcp`).
 
-## Defining Rules & Rulesets in YAML
+## Package Structure
 
-```yaml
-rules:
-  age_validation:
-    name: "Age Validation"
-    description: "Validates user age requirements"
-    expression: "user.age >= globals.min_age"
-
-  email_format:
-    name: "Email Format Check"
-    description: "Validates email format using regex"
-    expression: |
-      user.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
-
-  email_whitelist:
-    name: "Domain Whitelist Check"
-    extends: email_format
-    expression: |
-      globals.allowed_domains.exists(domain, user.email.endsWith('@' + domain))
-
-rulesets:
-  user_registration:
-    name: "User Registration Validation"
-    selector: "AND" # Supports AND (default), OR, NONE, or min_passed threshold
-    rules:
-      - age_validation
-      - email_whitelist
-```
+| File | Responsibility |
+|------|----------------|
+| `ruleengine.go` | `RuleEngine`, `Policy`, `Option`s (`WithOptimise`, `WithExhaustiveEval`), constructors, and atomic snapshot state |
+| `evaluate.go` | `EvaluateRule`, `EvaluateRuleset`, `EvaluateAllRulesets`, combinator tally/short-circuiting, and deadline checks |
+| `compile.go` | CEL compilation, boolean output-type verification, ruleset validation, and top-down parent resolution |
+| `manage.go` | Copy-on-write runtime mutation & introspection (`ValidateExpression`, `UpsertRule`, `RemoveRule`, `UpsertRuleset`, `ListRules`, `ListRulesets`) |
+| `config.go` | YAML configuration types, deep `Clone`, environment overrides, and `io.Reader` / `[]byte` loaders |
+| `env.go` | `NewDefaultEnv` with `globals` and built-in `timestamp()` / `now()` CEL functions |
+| `rules.go` | `RuleResult`, `RulesetResult`, and JSON marshaling |
+| `errors.go` | Sentinel errors (`ErrPolicyNotFound`, `ErrRuleNotFound`, `ErrRulesetNotFound`, `ErrCircularDependency`, `ErrRuleInUse`, `ErrNonBooleanExpression`, `ErrInvalidSelector`, `ErrInvalidMinPassed`) |
+| `mcp/server.go` | MCP server wrapper around `github.com/modelcontextprotocol/go-sdk/mcp` (read-only by default; opt-in `WithAuthoring()`) |
+| `mcp/tools.go` | Typed tool input structs with `jsonschema` tags and tool registration |
+| `mcp/handlers.go` | Typed MCP tool handlers |
 
 ## Programmatic Usage
 
@@ -65,7 +53,6 @@ func main() {
 		panic(err)
 	}
 
-	// Register rules and rulesets at runtime
 	_ = engine.UpsertRule("is_adult", ruleengine.Rule{
 		Name:       "Adult Check",
 		Expression: "user.age >= globals.min_age",
@@ -91,7 +78,7 @@ Build and run the standalone MCP server over stdio:
 go build -o bin/ruleengine-mcp ./cmd/ruleengine-mcp
 ```
 
-Configure in `~/.gemini/config/mcp_config.json` (or Claude Desktop / Cursor MCP config):
+By default, `ruleengine-mcp` starts in **read-only mode** (exposing only evaluation, validation, and listing tools). Pass `-allow-authoring` to enable `upsert_rule` and `upsert_ruleset` (in-memory only; changes are not persisted across restarts):
 
 ```json
 {
@@ -105,13 +92,18 @@ Configure in `~/.gemini/config/mcp_config.json` (or Claude Desktop / Cursor MCP 
 ```
 
 ### Exposed MCP Tools
-| Tool | Description |
-|------|-------------|
-| `evaluate_rule` | Evaluate a single rule by `rule_name` against an `input` object |
-| `evaluate_ruleset` | Evaluate a ruleset by `ruleset_name` against an `input` object |
-| `evaluate_all_rulesets` | Evaluate all configured rulesets against an `input` object |
-| `validate_expression` | Compile and verify that a CEL `expression` returns `bool` |
-| `list_rules` | List all configured rules, expressions, and parent inheritance |
-| `list_rulesets` | List all configured rulesets and combinator selectors |
-| `upsert_rule` | Dynamically compile and register/update a rule at runtime |
-| `upsert_ruleset` | Dynamically register/update a ruleset at runtime |
+| Tool | Mode | Description |
+|------|------|-------------|
+| `evaluate_rule` | Read-only | Evaluate a single rule by `rule_name` against an `input` object |
+| `evaluate_ruleset` | Read-only | Evaluate a ruleset by `ruleset_name` against an `input` object |
+| `evaluate_all_rulesets` | Read-only | Evaluate all configured rulesets against an `input` object |
+| `validate_expression` | Read-only | Compile and verify that a CEL `expression` returns `bool` |
+| `list_rules` | Read-only | List all configured rules, expressions, and parent inheritance |
+| `list_rulesets` | Read-only | List all configured rulesets and combinator selectors |
+| `upsert_rule` | `-allow-authoring` | Dynamically compile and register/update a rule in memory |
+| `upsert_ruleset` | `-allow-authoring` | Dynamically register/update a ruleset in memory |
+
+## Breaking Changes from `v0.0.3`
+- Removed stateful `SetContext`; `EvaluateRule`, `EvaluateRuleset`, and `EvaluateAllRulesets` now accept `(ctx context.Context, ..., input map[string]any)`.
+- Unknown ruleset `selector` values and combining `selector` with `min_passed` now fail validation (`ErrInvalidSelector` / `ErrInvalidMinPassed`) instead of silently falling back to `AND`.
+- Standard CEL short-circuiting (`&&` / `||`) is now enabled by default; use `WithExhaustiveEval()` when exhaustive state tracking is required.

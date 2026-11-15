@@ -1287,6 +1287,13 @@ func TestNewRuleEngine(t *testing.T) {
 			opts:        []Option{WithOptimise()},
 			wantErr:     false,
 		},
+		{
+			name:        "GivenValidConfigWithExhaustiveEvalOption_WhenNewRuleEngine_ThenSucceeds",
+			configPath:  testRulesYAMLPath,
+			envProvider: setupEnvironment(),
+			opts:        []Option{WithExhaustiveEval()},
+			wantErr:     false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1298,8 +1305,133 @@ func TestNewRuleEngine(t *testing.T) {
 	}
 }
 
+func TestEvaluateRulesetEvalErrors(t *testing.T) {
+	newSelectorEvalErrorEngine := func(t *testing.T) *RuleEngine {
+		t.Helper()
+		env := setupEnvironment()(t)
+		cfg := &RulesetConfig{
+			Rules: map[string]Rule{
+				"missing_field_rule": {
+					Name:       "Missing Field Rule",
+					Expression: "user.blocked == true",
+				},
+				"passing_rule": {
+					Name:       "Passing Rule",
+					Expression: "user.status == 'active'",
+				},
+				"dyn_non_bool_rule": {
+					Name:       "Dynamic Non-Boolean Rule",
+					Expression: "user.status",
+				},
+			},
+			Rulesets: map[string]Ruleset{
+				"none_ruleset": {
+					Name:     "None Ruleset",
+					Selector: SelectorNone,
+					Rules:    []string{"missing_field_rule"},
+				},
+				"and_ruleset": {
+					Name:     "And Ruleset",
+					Selector: SelectorAnd,
+					Rules:    []string{"missing_field_rule", "passing_rule"},
+				},
+				"or_ruleset": {
+					Name:     "Or Ruleset",
+					Selector: SelectorOr,
+					Rules:    []string{"missing_field_rule", "passing_rule"},
+				},
+				"min_passed_ruleset": {
+					Name:      "MinPassed Ruleset",
+					MinPassed: 1,
+					Rules:     []string{"missing_field_rule", "passing_rule"},
+				},
+			},
+		}
+		engine, err := NewRuleEngineFromConfig(cfg, "", env)
+		if err != nil {
+			t.Fatalf("NewRuleEngineFromConfig() unexpected error: %v", err)
+		}
+		return engine
+	}
+
+	inputMissingBlocked := map[string]any{
+		"user": map[string]any{"status": "active"},
+	}
+
+	t.Run("GivenNoneSelector_WhenRuleHitsEvalError_ThenFailsClosedWithEvalError", func(t *testing.T) {
+		engine := newSelectorEvalErrorEngine(t)
+		res, err := engine.EvaluateRuleset(context.Background(), "none_ruleset", inputMissingBlocked)
+		if err != nil {
+			t.Fatalf("EvaluateRuleset(none_ruleset) error = %v", err)
+		}
+		if res.Passed {
+			t.Fatal("EvaluateRuleset(none_ruleset) Passed = true on eval error, want false (fail closed)")
+		}
+		if res.RuleResults["missing_field_rule"].EvalError == nil {
+			t.Error("RuleResults[missing_field_rule].EvalError = nil, want CEL evaluation error")
+		}
+	})
+
+	t.Run("GivenAndSelector_WhenRuleHitsEvalError_ThenFailsWithEvalError", func(t *testing.T) {
+		engine := newSelectorEvalErrorEngine(t)
+		res, err := engine.EvaluateRuleset(context.Background(), "and_ruleset", inputMissingBlocked)
+		if err != nil {
+			t.Fatalf("EvaluateRuleset(and_ruleset) error = %v", err)
+		}
+		if res.Passed {
+			t.Fatal("EvaluateRuleset(and_ruleset) Passed = true on eval error, want false")
+		}
+		if res.RuleResults["missing_field_rule"].EvalError == nil {
+			t.Error("RuleResults[missing_field_rule].EvalError = nil, want CEL evaluation error")
+		}
+	})
+
+	t.Run("GivenOrSelector_WhenOneRuleHitsEvalErrorAndAnotherPasses_ThenRulesetPasses", func(t *testing.T) {
+		engine := newSelectorEvalErrorEngine(t)
+		res, err := engine.EvaluateRuleset(context.Background(), "or_ruleset", inputMissingBlocked)
+		if err != nil {
+			t.Fatalf("EvaluateRuleset(or_ruleset) error = %v", err)
+		}
+		if !res.Passed {
+			t.Fatalf("EvaluateRuleset(or_ruleset) Passed = false, want true when passing_rule succeeds")
+		}
+		if res.RuleResults["missing_field_rule"].EvalError == nil {
+			t.Error("RuleResults[missing_field_rule].EvalError = nil, want CEL evaluation error")
+		}
+	})
+
+	t.Run("GivenMinPassedSelector_WhenOneRuleHitsEvalErrorAndThresholdMet_ThenRulesetPasses", func(t *testing.T) {
+		engine := newSelectorEvalErrorEngine(t)
+		res, err := engine.EvaluateRuleset(context.Background(), "min_passed_ruleset", inputMissingBlocked)
+		if err != nil {
+			t.Fatalf("EvaluateRuleset(min_passed_ruleset) error = %v", err)
+		}
+		if !res.Passed {
+			t.Fatalf("EvaluateRuleset(min_passed_ruleset) Passed = false, want true when threshold is met")
+		}
+		if res.RuleResults["missing_field_rule"].EvalError == nil {
+			t.Error("RuleResults[missing_field_rule].EvalError = nil, want CEL evaluation error")
+		}
+	})
+
+	t.Run("GivenDynamicRuleReturningNonBooleanAtRuntime_WhenEvaluateRule_ThenSetsErrNonBooleanExpressionInEvalError", func(t *testing.T) {
+		engine := newSelectorEvalErrorEngine(t)
+		res, err := engine.EvaluateRule(context.Background(), "dyn_non_bool_rule", inputMissingBlocked)
+		if err != nil {
+			t.Fatalf("EvaluateRule(dyn_non_bool_rule) error = %v", err)
+		}
+		if res.Passed {
+			t.Fatal("EvaluateRule(dyn_non_bool_rule) Passed = true, want false")
+		}
+		if !errors.Is(res.EvalError, ErrNonBooleanExpression) {
+			t.Errorf("EvaluateRule(dyn_non_bool_rule) EvalError = %v, want errors.Is ErrNonBooleanExpression", res.EvalError)
+		}
+	})
+}
+
 func TestProgrammaticRuleManagement(t *testing.T) {
-	t.Run("GivenProgrammaticConfig_WhenUpsertRemoveAndInspect_ThenUpdatesEngineSafely", func(t *testing.T) {
+	newBaseEngine := func(t *testing.T) (*RuleEngine, *RulesetConfig) {
+		t.Helper()
 		env := setupEnvironment()(t)
 		cfg := &RulesetConfig{
 			Globals: map[string]any{"min_age": prodMinAge},
@@ -1316,26 +1448,37 @@ func TestProgrammaticRuleManagement(t *testing.T) {
 					Rules:    []string{"is_adult"},
 				},
 			},
+			ErrorHandling: ErrorHandling{
+				CustomErrorMessages: map[string]string{
+					"temp_rule": "custom temp failure message",
+				},
+			},
 		}
-
 		engine, err := NewRuleEngineFromConfig(cfg, "", env)
 		if err != nil {
 			t.Fatalf("NewRuleEngineFromConfig() unexpected error: %v", err)
 		}
+		return engine, cfg
+	}
 
-		// Mutate caller's cfg after engine creation to verify deep-copy ownership isolation.
+	t.Run("GivenCallerConfigMutatedAfterInit_WhenEvaluateRuleset_ThenEngineSnapshotRemainsIsolated", func(t *testing.T) {
+		engine, cfg := newBaseEngine(t)
+
 		cfg.Globals["min_age"] = 999
 		cfg.Rules["is_adult"] = Rule{Expression: "false"}
 		cfg.Rulesets["onboarding"].Rules[0] = "mutated_rule"
 
-		initialCheck, err := engine.EvaluateRuleset(context.Background(), "onboarding", map[string]any{
+		res, err := engine.EvaluateRuleset(context.Background(), "onboarding", map[string]any{
 			"user": map[string]any{"age": defaultMinAge},
 		})
-		if err != nil || !initialCheck.Passed {
-			t.Fatalf("EvaluateRuleset(onboarding) after external config mutation got (%+v, %v), want Passed=true", initialCheck, err)
+		if err != nil || !res.Passed {
+			t.Fatalf("EvaluateRuleset(onboarding) after external config mutation got (%+v, %v), want Passed=true", res, err)
 		}
+	})
 
-		// Reject unsupported ruleset selector
+	t.Run("GivenInvalidSelectorOrMinPassed_WhenUpsertRuleset_ThenReturnsValidationErrors", func(t *testing.T) {
+		engine, _ := newBaseEngine(t)
+
 		if err := engine.UpsertRuleset("invalid_selector", Ruleset{
 			Name:     "Invalid Selector",
 			Selector: SelectorType("XOR"),
@@ -1344,20 +1487,32 @@ func TestProgrammaticRuleManagement(t *testing.T) {
 			t.Errorf("UpsertRuleset(XOR) error = %v, want errors.Is ErrInvalidSelector", err)
 		}
 
-		// Reject out-of-range MinPassed threshold
 		if err := engine.UpsertRuleset("invalid_min_passed", Ruleset{
 			Name:      "Invalid MinPassed",
 			MinPassed: 5,
 			Rules:     []string{"is_adult"},
-		}); !errors.Is(err, ErrInvalidSelector) {
-			t.Errorf("UpsertRuleset(min_passed=5) error = %v, want errors.Is ErrInvalidSelector", err)
+		}); !errors.Is(err, ErrInvalidMinPassed) {
+			t.Errorf("UpsertRuleset(min_passed=5) error = %v, want errors.Is ErrInvalidMinPassed", err)
 		}
+
+		if err := engine.UpsertRuleset("selector_and_min_passed", Ruleset{
+			Name:      "Selector And MinPassed",
+			Selector:  SelectorNone,
+			MinPassed: 1,
+			Rules:     []string{"is_adult"},
+		}); !errors.Is(err, ErrInvalidMinPassed) {
+			t.Errorf("UpsertRuleset(selector+min_passed) error = %v, want errors.Is ErrInvalidMinPassed", err)
+		}
+	})
+
+	t.Run("GivenUpsertRuleAndRuleset_WhenEvaluatedAndListed_ThenReflectsUpdatedDefinitions", func(t *testing.T) {
+		engine, _ := newBaseEngine(t)
 
 		if err := engine.ValidateExpression("user.age > 0"); err != nil {
 			t.Errorf("ValidateExpression(valid) unexpected error: %v", err)
 		}
-		if err := engine.ValidateExpression("user.age + 10"); err == nil {
-			t.Error("ValidateExpression(non-bool) expected error, got nil")
+		if err := engine.ValidateExpression("user.age + 10"); !errors.Is(err, ErrNonBooleanExpression) {
+			t.Errorf("ValidateExpression(non-bool) error = %v, want errors.Is ErrNonBooleanExpression", err)
 		}
 
 		if err := engine.UpsertRule("verified_adult", Rule{
@@ -1383,9 +1538,8 @@ func TestProgrammaticRuleManagement(t *testing.T) {
 			t.Fatalf("EvaluateRuleset(verified_onboarding) got (%+v, %v), want Passed=true", res, err)
 		}
 
-		// Removing a rule still referenced by a child rule or ruleset must fail
-		if err := engine.RemoveRule("is_adult"); err == nil {
-			t.Error("RemoveRule(is_adult) expected error while extended by verified_adult, got nil")
+		if err := engine.RemoveRule("is_adult"); !errors.Is(err, ErrRuleInUse) {
+			t.Errorf("RemoveRule(is_adult) error = %v, want errors.Is ErrRuleInUse", err)
 		}
 
 		if len(engine.ListRules()) != 2 {
@@ -1395,16 +1549,52 @@ func TestProgrammaticRuleManagement(t *testing.T) {
 			t.Errorf("ListRulesets() count = %d, want 2", len(engine.ListRulesets()))
 		}
 
-		// Verify JSON marshaling of RulesetResult
 		payload, err := json.Marshal(res)
 		if err != nil || len(payload) == 0 {
 			t.Errorf("json.Marshal(RulesetResult) err = %v, payload = %s", err, string(payload))
 		}
 	})
+
+	t.Run("GivenRuleWithCustomErrorMessage_WhenRemovedAndReAdded_ThenDefaultErrorMessageIsUsed", func(t *testing.T) {
+		engine, _ := newBaseEngine(t)
+
+		if err := engine.UpsertRule("temp_rule", Rule{
+			Name:       "Temporary Rule",
+			Expression: "user.age >= 100",
+		}); err != nil {
+			t.Fatalf("UpsertRule(temp_rule) error = %v", err)
+		}
+
+		beforeRemove, err := engine.EvaluateRule(context.Background(), "temp_rule", map[string]any{
+			"user": map[string]any{"age": defaultMinAge},
+		})
+		if err != nil || beforeRemove.Error == nil || beforeRemove.Error.Error() != "custom temp failure message" {
+			t.Fatalf("EvaluateRule(temp_rule) before remove error = %v, result.Error = %v, want custom message", err, beforeRemove.Error)
+		}
+
+		if err := engine.RemoveRule("temp_rule"); err != nil {
+			t.Fatalf("RemoveRule(temp_rule) error = %v", err)
+		}
+
+		if err := engine.UpsertRule("temp_rule", Rule{
+			Name:       "Temporary Rule Re-added",
+			Expression: "user.age >= 100",
+		}); err != nil {
+			t.Fatalf("UpsertRule(temp_rule) re-add error = %v", err)
+		}
+
+		afterReAdd, err := engine.EvaluateRule(context.Background(), "temp_rule", map[string]any{
+			"user": map[string]any{"age": defaultMinAge},
+		})
+		const wantDefaultMsg = "rule 'temp_rule' did not pass evaluation"
+		if err != nil || afterReAdd.Error == nil || afterReAdd.Error.Error() != wantDefaultMsg {
+			t.Errorf("EvaluateRule(temp_rule) after re-add result.Error = %v, want %q", afterReAdd.Error, wantDefaultMsg)
+		}
+	})
 }
 
 func TestConcurrentEvaluations(t *testing.T) {
-	t.Run("GivenConcurrentEvaluatorsAndMutators_WhenRunningUnderRaceDetector_ThenNoDataRacesOccur", func(t *testing.T) {
+	t.Run("GivenConcurrentEvaluatorsAndMutators_WhenRunningUnderRaceDetector_ThenAllEvaluationsPassWithoutDataRaces", func(t *testing.T) {
 		env := setupEnvironment()(t)
 		engine, err := NewRuleEngine(testRulesYAMLPath, envDevelopment, env)
 		if err != nil {
@@ -1432,13 +1622,26 @@ func TestConcurrentEvaluations(t *testing.T) {
 					},
 				}
 				if id%4 == 0 {
-					_ = engine.UpsertRule("dynamic_rule", Rule{
+					if upsertErr := engine.UpsertRule("dynamic_rule", Rule{
 						Name:       "Dynamic Rule",
 						Expression: "user.age >= globals.min_age",
-					})
+					}); upsertErr != nil {
+						t.Errorf("UpsertRule() error = %v", upsertErr)
+					}
 				}
-				_, _ = engine.EvaluateAllRulesets(context.Background(), input)
-				_, _ = engine.EvaluateRule(context.Background(), "test_user", input)
+				allRes, allErr := engine.EvaluateAllRulesets(context.Background(), input)
+				if allErr != nil {
+					t.Errorf("EvaluateAllRulesets() error = %v", allErr)
+				} else if !allRes["user_registration"].Passed {
+					t.Errorf("EvaluateAllRulesets()[user_registration].Passed = false, want true")
+				}
+
+				ruleRes, ruleErr := engine.EvaluateRule(context.Background(), "test_user", input)
+				if ruleErr != nil {
+					t.Errorf("EvaluateRule() error = %v", ruleErr)
+				} else if !ruleRes.Passed {
+					t.Errorf("EvaluateRule(test_user).Passed = false, want true")
+				}
 			}(i)
 		}
 		wg.Wait()

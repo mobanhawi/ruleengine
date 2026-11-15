@@ -501,3 +501,51 @@ func TestToExecutionPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestRulesetConfigClone(t *testing.T) {
+	t.Run("GivenConfigWithNestedMapsInsideSlices_WhenClonedAndSourceMutated_ThenCloneIsUnmodified", func(t *testing.T) {
+		nestedItem := map[string]any{"tier": "gold"}
+		original := &RulesetConfig{
+			Globals: map[string]any{
+				"tiers": []any{nestedItem},
+			},
+			Rules: map[string]Rule{
+				"tier_rule": {
+					Name:       "Tier Rule",
+					Expression: "true",
+					Tags:       []string{"billing"},
+				},
+			},
+			Rulesets: map[string]Ruleset{
+				"tier_set": {
+					Name:     "Tier Set",
+					Selector: SelectorAnd,
+					Rules:    []string{"tier_rule"},
+					Tags:     []string{"billing"},
+				},
+			},
+		}
+
+		cloned := original.Clone()
+
+		// Mutate deeply nested map inside slice, plus rule/ruleset tag slices.
+		nestedItem["tier"] = "mutated"
+		original.Rules["tier_rule"].Tags[0] = "mutated_tag"
+		original.Rulesets["tier_set"].Tags[0] = "mutated_tag"
+
+		clonedSlice, ok := cloned.Globals["tiers"].([]any)
+		if !ok || len(clonedSlice) != 1 {
+			t.Fatalf("cloned.Globals[tiers] = %#v, want 1-element []any", cloned.Globals["tiers"])
+		}
+		clonedMap, ok := clonedSlice[0].(map[string]any)
+		if !ok || clonedMap["tier"] != "gold" {
+			t.Errorf("cloned nested map tier = %v, want %q", clonedMap["tier"], "gold")
+		}
+		if got := cloned.Rules["tier_rule"].Tags[0]; got != "billing" {
+			t.Errorf("cloned rule tag = %q, want %q", got, "billing")
+		}
+		if got := cloned.Rulesets["tier_set"].Tags[0]; got != "billing" {
+			t.Errorf("cloned ruleset tag = %q, want %q", got, "billing")
+		}
+	})
+}

@@ -40,14 +40,18 @@ func BenchmarkRuleEngineEvaluateAllRulesets(b *testing.B) {
 	}
 	ctx := context.Background()
 	for b.Loop() {
-		_, _ = engine.EvaluateAllRulesets(ctx, input)
+		if _, evalErr := engine.EvaluateAllRulesets(ctx, input); evalErr != nil {
+			b.Fatalf("EvaluateAllRulesets() error = %v", evalErr)
+		}
 	}
 }
 
 func BenchmarkNewRuleEngine(b *testing.B) {
 	celEnv := setupBenchmarkEnvironment(b)
 	for b.Loop() {
-		_, _ = NewRuleEngine(testBenchRulesYAMLPath, "env", celEnv)
+		if _, initErr := NewRuleEngine(testBenchRulesYAMLPath, envDevelopment, celEnv); initErr != nil {
+			b.Fatalf("NewRuleEngine() error = %v", initErr)
+		}
 	}
 }
 
@@ -72,13 +76,17 @@ func BenchmarkRuleEngineOptimiseEvaluateAllRulesets(b *testing.B) {
 	}
 	ctx := context.Background()
 	for b.Loop() {
-		_, _ = engine.EvaluateAllRulesets(ctx, input)
+		if _, evalErr := engine.EvaluateAllRulesets(ctx, input); evalErr != nil {
+			b.Fatalf("EvaluateAllRulesets() error = %v", evalErr)
+		}
 	}
 }
 
 func BenchmarkNewRuleEngineOptimise(b *testing.B) {
 	celEnv := setupBenchmarkEnvironment(b)
 	for b.Loop() {
-		_, _ = NewRuleEngine(testBenchRulesYAMLPath, "env", celEnv, WithOptimise())
+		if _, initErr := NewRuleEngine(testBenchRulesYAMLPath, envDevelopment, celEnv, WithOptimise()); initErr != nil {
+			b.Fatalf("NewRuleEngine() error = %v", initErr)
+		}
 	}
 }
