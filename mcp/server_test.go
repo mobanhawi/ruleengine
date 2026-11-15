@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mobanhawi/ruleengine"
 )
@@ -77,7 +80,7 @@ func TestHandleRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "GivenInitializedNotification_WhenHandleRequest_ThenProducesNoResponse",
+			name: "GivenValidInitializedNotification_WhenHandleRequest_ThenProducesNoResponse",
 			request: map[string]any{
 				"jsonrpc": "2.0",
 				"method":  "notifications/initialized",
@@ -85,7 +88,22 @@ func TestHandleRequest(t *testing.T) {
 			wantNoResponse: true,
 		},
 		{
-			name: "GivenToolsListRequest_WhenHandleRequest_ThenReturnsAllEightTools",
+			name: "GivenMalformedMessageWithoutIDAndMissingMethod_WhenHandleRequest_ThenReturnsInvalidRequestError",
+			request: map[string]any{
+				"jsonrpc": "2.0",
+			},
+			wantErrCode: errCodeInvalidRequest,
+		},
+		{
+			name: "GivenMalformedMessageWithoutIDAndInvalidVersion_WhenHandleRequest_ThenReturnsInvalidRequestError",
+			request: map[string]any{
+				"jsonrpc": "1.0",
+				"method":  "notifications/initialized",
+			},
+			wantErrCode: errCodeInvalidRequest,
+		},
+		{
+			name: "GivenToolsListRequest_WhenHandleRequest_ThenReturnsAllEightToolsWithTagsSchemas",
 			request: map[string]any{
 				"jsonrpc": "2.0",
 				"id":      2,
@@ -95,6 +113,17 @@ func TestHandleRequest(t *testing.T) {
 				tools, ok := res["tools"].([]any)
 				if !ok || len(tools) != 8 {
 					t.Fatalf("tools count = %d, want 8", len(tools))
+				}
+				for _, item := range tools {
+					toolMap, _ := item.(map[string]any)
+					name, _ := toolMap["name"].(string)
+					if name == "upsert_rule" || name == "upsert_ruleset" {
+						schema, _ := toolMap["inputSchema"].(map[string]any)
+						props, _ := schema["properties"].(map[string]any)
+						if _, hasTags := props["tags"]; !hasTags {
+							t.Errorf("tool %q inputSchema.properties is missing 'tags'", name)
+						}
+					}
 				}
 			},
 		},
@@ -201,6 +230,7 @@ func TestHandleRequest(t *testing.T) {
 						"name":       "Verified Age Check",
 						"extends":    testRuleID,
 						"expression": "user.verified == true",
+						"tags":       []string{"auth", "kyc"},
 					},
 				},
 			},
@@ -302,6 +332,24 @@ func TestServe(t *testing.T) {
 		lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 		if len(lines) != 2 {
 			t.Fatalf("got %d response lines, want 2: %v", len(lines), lines)
+		}
+	})
+
+	t.Run("GivenBlockingInputStream_WhenContextIsCancelled_ThenServeUnblocksImmediately", func(t *testing.T) {
+		srv := newTestServer(t)
+		pr, pw := io.Pipe()
+		defer func() {
+			_ = pw.Close()
+			_ = pr.Close()
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+		defer cancel()
+
+		var out bytes.Buffer
+		err := srv.Serve(ctx, pr, &out)
+		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			t.Fatalf("Serve() error = %v, want context cancellation error", err)
 		}
 	})
 }

@@ -142,7 +142,7 @@ func TestNewRulesetConfig(t *testing.T) {
 						Name:             "Fail Fast Execution",
 						Description:      "Stop execution on first rule failure",
 						StopOnFailure:    true,
-						MaxExecutionTime: "1ns",
+						MaxExecutionTime: "5s",
 					},
 					policyCollectAll: {
 						Name:             "Collect All Results",

@@ -38,6 +38,25 @@ func setupEnvironment() func(*testing.T) *cel.Env {
 	}
 }
 
+func newOneNanosecondTimeoutEngine(t *testing.T) *RuleEngine {
+	t.Helper()
+	env := setupEnvironment()(t)
+	cfg, err := NewRulesetConfig(testRulesYAMLPath)
+	if err != nil {
+		t.Fatalf("NewRulesetConfig() error = %v", err)
+	}
+	cfg.ExecutionPolicies[policyFailFast] = ExecutionPolicy{
+		Name:             "Strict 1ns Timeout",
+		StopOnFailure:    true,
+		MaxExecutionTime: "1ns",
+	}
+	engine, err := NewRuleEngineFromConfig(cfg, envProduction, env)
+	if err != nil {
+		t.Fatalf("NewRuleEngineFromConfig() error = %v", err)
+	}
+	return engine
+}
+
 func TestNewDefaultEnv(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -446,6 +465,18 @@ func TestEvaluateRule(t *testing.T) {
 			want:    RuleResult{},
 			wantErr: true,
 		},
+		{
+			name:       "GivenOneNanosecondPolicyTimeout_WhenEvaluateRule_ThenReturnsTimeoutError",
+			ruleengine: newOneNanosecondTimeoutEngine,
+			args: args{
+				ruleName: "age_validation",
+				input: map[string]any{
+					"user": map[string]any{"age": testUserAgeTeen},
+				},
+			},
+			want:    RuleResult{},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -718,7 +749,7 @@ func TestEvaluateRuleset(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "GivenFirstRulePassesInOrRuleset_WhenEvaluateRequestThrottlingInProd_ThenPasses",
+			name: "GivenFirstRulePassesInOrRuleset_WhenEvaluateRequestThrottlingInProd_ThenShortCircuitsAndPasses",
 			ruleengine: func(t *testing.T) *RuleEngine {
 				env := setupEnvironment()(t)
 				engine, err := NewRuleEngine(testRulesYAMLPath, envProduction, env)
@@ -748,14 +779,21 @@ func TestEvaluateRuleset(t *testing.T) {
 				Passed:      true,
 				RuleResults: map[string]RuleResult{
 					"rate_limiting": {RuleName: "rate_limiting", Passed: true},
-					"user_tier": {
-						RuleName: "user_tier",
-						Passed:   false,
-						Error:    errors.New("rule 'user_tier' did not pass evaluation"),
-					},
 				},
 			},
 			wantErr: false,
+		},
+		{
+			name:       "GivenOneNanosecondPolicyTimeout_WhenEvaluateRuleset_ThenReturnsTimeoutError",
+			ruleengine: newOneNanosecondTimeoutEngine,
+			args: args{
+				rulesetName: "user_registration",
+				input: map[string]any{
+					"user": map[string]any{"age": testUserAgeTeen},
+				},
+			},
+			want:    RulesetResult{},
+			wantErr: true,
 		},
 		{
 			name: "GivenSecondRulePassesInOrRuleset_WhenEvaluateRequestThrottlingInDev_ThenPasses",
@@ -1085,15 +1123,8 @@ func TestEvaluateAllRulesets(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "GivenOneNanosecondPolicyTimeout_WhenEvaluateAllRulesets_ThenReturnsTimeoutError",
-			ruleengine: func(t *testing.T) *RuleEngine {
-				env := setupEnvironment()(t)
-				engine, err := NewRuleEngine(testRulesYAMLPath, envProduction, env)
-				if err != nil {
-					t.Fatalf("failed to create rules engine: %v", err)
-				}
-				return engine
-			},
+			name:       "GivenOneNanosecondPolicyTimeout_WhenEvaluateAllRulesets_ThenReturnsTimeoutError",
+			ruleengine: newOneNanosecondTimeoutEngine,
 			input: map[string]any{
 				"user": map[string]any{
 					"age":       testUserAgeTeen,
@@ -1290,6 +1321,36 @@ func TestProgrammaticRuleManagement(t *testing.T) {
 		engine, err := NewRuleEngineFromConfig(cfg, "", env)
 		if err != nil {
 			t.Fatalf("NewRuleEngineFromConfig() unexpected error: %v", err)
+		}
+
+		// Mutate caller's cfg after engine creation to verify deep-copy ownership isolation.
+		cfg.Globals["min_age"] = 999
+		cfg.Rules["is_adult"] = Rule{Expression: "false"}
+		cfg.Rulesets["onboarding"].Rules[0] = "mutated_rule"
+
+		initialCheck, err := engine.EvaluateRuleset(context.Background(), "onboarding", map[string]any{
+			"user": map[string]any{"age": defaultMinAge},
+		})
+		if err != nil || !initialCheck.Passed {
+			t.Fatalf("EvaluateRuleset(onboarding) after external config mutation got (%+v, %v), want Passed=true", initialCheck, err)
+		}
+
+		// Reject unsupported ruleset selector
+		if err := engine.UpsertRuleset("invalid_selector", Ruleset{
+			Name:     "Invalid Selector",
+			Selector: SelectorType("XOR"),
+			Rules:    []string{"is_adult"},
+		}); !errors.Is(err, ErrInvalidSelector) {
+			t.Errorf("UpsertRuleset(XOR) error = %v, want errors.Is ErrInvalidSelector", err)
+		}
+
+		// Reject out-of-range MinPassed threshold
+		if err := engine.UpsertRuleset("invalid_min_passed", Ruleset{
+			Name:      "Invalid MinPassed",
+			MinPassed: 5,
+			Rules:     []string{"is_adult"},
+		}); !errors.Is(err, ErrInvalidSelector) {
+			t.Errorf("UpsertRuleset(min_passed=5) error = %v, want errors.Is ErrInvalidSelector", err)
 		}
 
 		if err := engine.ValidateExpression("user.age > 0"); err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/mobanhawi/ruleengine"
 )
@@ -74,55 +75,104 @@ type toolContent struct {
 	Text string `json:"text"`
 }
 
-// Serve reads newline-delimited JSON-RPC 2.0 requests from in and writes responses to out until EOF or context cancellation.
+type scanFrame struct {
+	line []byte
+	err  error
+}
+
+type readDeadliner interface {
+	SetReadDeadline(t time.Time) error
+}
+
+// Serve reads newline-delimited JSON-RPC 2.0 requests from in and writes responses to out
+// until EOF or context cancellation. If ctx is cancelled while waiting for input, Serve
+// unblocks immediately and returns the context error.
 func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
-	scanner := bufio.NewScanner(in)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxScannerBufferSize)
-
-	for scanner.Scan() {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("mcp server context cancelled: %w", err)
-		}
-
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
-			continue
-		}
-
-		resp, err := s.HandleRequest(ctx, line)
-		if err != nil {
-			return fmt.Errorf("handling mcp request: %w", err)
-		}
-		if len(resp) == 0 {
-			continue
-		}
-
-		if _, err := out.Write(append(resp, '\n')); err != nil {
-			return fmt.Errorf("writing mcp response: %w", err)
-		}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("mcp server context cancelled: %w", err)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("reading mcp input stream: %w", err)
+	frames := make(chan scanFrame)
+	stopScan := make(chan struct{})
+	defer close(stopScan)
+
+	go func() {
+		defer close(frames)
+		scanner := bufio.NewScanner(in)
+		scanner.Buffer(make([]byte, 0, 64*1024), maxScannerBufferSize)
+		for scanner.Scan() {
+			lineCopy := bytes.Clone(bytes.TrimSpace(scanner.Bytes()))
+			select {
+			case frames <- scanFrame{line: lineCopy}:
+			case <-stopScan:
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			select {
+			case frames <- scanFrame{err: err}:
+			case <-stopScan:
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			if rd, ok := in.(readDeadliner); ok {
+				_ = rd.SetReadDeadline(time.Now())
+			}
+			return fmt.Errorf("mcp server context cancelled: %w", ctx.Err())
+
+		case frame, ok := <-frames:
+			if !ok {
+				return nil
+			}
+			if frame.err != nil {
+				if ctx.Err() != nil {
+					return fmt.Errorf("mcp server context cancelled: %w", ctx.Err())
+				}
+				return fmt.Errorf("reading mcp input stream: %w", frame.err)
+			}
+			if len(frame.line) == 0 {
+				continue
+			}
+
+			resp, err := s.HandleRequest(ctx, frame.line)
+			if err != nil {
+				return fmt.Errorf("handling mcp request: %w", err)
+			}
+			if len(resp) == 0 {
+				continue
+			}
+
+			if _, err := out.Write(append(resp, '\n')); err != nil {
+				return fmt.Errorf("writing mcp response: %w", err)
+			}
+		}
 	}
-	return nil
 }
 
 // HandleRequest processes a single JSON-RPC 2.0 message and returns the serialized JSON-RPC response.
-// For JSON-RPC notifications (requests without an "id"), HandleRequest returns (nil, nil).
+// Valid JSON-RPC notifications (messages with jsonrpc=="2.0" and a non-empty method, but no "id")
+// return (nil, nil). Malformed requests without an "id" return an Invalid Request error with id=null.
 func (s *Server) HandleRequest(ctx context.Context, raw []byte) ([]byte, error) {
 	var req rpcRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return marshalError(json.RawMessage("null"), errCodeParseError, fmt.Sprintf("invalid JSON: %v", err))
 	}
 
-	// JSON-RPC notifications omit "id" and must not receive a response.
-	if len(req.ID) == 0 {
-		return nil, nil
+	if req.JSONRPC != jsonrpcVersion || req.Method == "" {
+		id := req.ID
+		if len(id) == 0 {
+			id = json.RawMessage("null")
+		}
+		return marshalError(id, errCodeInvalidRequest, "invalid JSON-RPC 2.0 request")
 	}
 
-	if req.JSONRPC != jsonrpcVersion || req.Method == "" {
-		return marshalError(req.ID, errCodeInvalidRequest, "invalid JSON-RPC 2.0 request")
+	// Valid JSON-RPC notifications omit "id" and must not receive a response.
+	if len(req.ID) == 0 {
+		return nil, nil
 	}
 
 	switch req.Method {
@@ -367,6 +417,7 @@ func (s *Server) toolDefinitions() []toolDefinition {
 					"description": map[string]any{"type": "string", "description": "Rule description"},
 					"expression":  map[string]any{"type": "string", "description": "CEL boolean expression"},
 					"extends":     map[string]any{"type": "string", "description": "Optional parent rule ID"},
+					"tags":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional tags for categorization"},
 				},
 				"required": []string{"id", "expression"},
 			},
@@ -383,6 +434,7 @@ func (s *Server) toolDefinitions() []toolDefinition {
 					"selector":    map[string]any{"type": "string", "enum": []string{"AND", "OR", "NONE"}},
 					"min_passed":  map[string]any{"type": "integer", "description": "Minimum passing rules threshold"},
 					"rules":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"tags":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional tags for categorization"},
 				},
 				"required": []string{"id", "rules"},
 			},

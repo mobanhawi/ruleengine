@@ -15,6 +15,8 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 )
 
+const defaultInterruptCheckFrequency = 100
+
 var (
 	// ErrRuleNotFound is returned when a requested rule ID does not exist.
 	ErrRuleNotFound = errors.New("rule not found")
@@ -112,6 +114,7 @@ func NewRuleEngine(configPath string, environment string, env *cel.Env, opts ...
 }
 
 // NewRuleEngineFromConfig creates a new RuleEngine instance from an in-memory RulesetConfig.
+// The provided configuration is deep-copied so subsequent caller mutations cannot affect the engine.
 func NewRuleEngineFromConfig(config *RulesetConfig, environment string, env *cel.Env, opts ...Option) (*RuleEngine, error) {
 	if config == nil {
 		return nil, errors.New("ruleset config is nil")
@@ -120,39 +123,40 @@ func NewRuleEngineFromConfig(config *RulesetConfig, environment string, env *cel
 		return nil, errors.New("cel env is nil")
 	}
 
-	if config.Globals == nil {
-		config.Globals = make(map[string]any)
+	cfg := config.Clone()
+	if cfg.Globals == nil {
+		cfg.Globals = make(map[string]any)
 	}
-	if config.Rules == nil {
-		config.Rules = make(map[string]Rule)
+	if cfg.Rules == nil {
+		cfg.Rules = make(map[string]Rule)
 	}
-	if config.Rulesets == nil {
-		config.Rulesets = make(map[string]Ruleset)
+	if cfg.Rulesets == nil {
+		cfg.Rulesets = make(map[string]Ruleset)
 	}
-	if config.ErrorHandling.CustomErrorMessages == nil {
-		config.ErrorHandling.CustomErrorMessages = make(map[string]string)
+	if cfg.ErrorHandling.CustomErrorMessages == nil {
+		cfg.ErrorHandling.CustomErrorMessages = make(map[string]string)
 	}
 
-	config.ApplyEnvironment(environment)
+	cfg.ApplyEnvironment(environment)
 
 	policy := Policy{
 		StopOnFailure:    true,
 		MaxExecutionTime: defaultMaxExecutionTime,
 	}
-	if config.ErrorHandling.ExecutionPolicy != "" || len(config.ExecutionPolicies) > 0 {
+	if cfg.ErrorHandling.ExecutionPolicy != "" || len(cfg.ExecutionPolicies) > 0 {
 		var err error
-		policy, err = config.ToExecutionPolicy()
+		policy, err = cfg.ToExecutionPolicy()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get execution policy: %w", err)
 		}
 	}
 
 	engine := &RuleEngine{
-		config:   config,
+		config:   cfg,
 		env:      env,
 		policy:   policy,
-		programs: make(map[string]cel.Program, len(config.Rules)),
-		parents:  make(map[string][]string, len(config.Rules)),
+		programs: make(map[string]cel.Program, len(cfg.Rules)),
+		parents:  make(map[string][]string, len(cfg.Rules)),
 		optimise: false,
 	}
 
@@ -168,6 +172,7 @@ func NewRuleEngineFromConfig(config *RulesetConfig, environment string, env *cel
 }
 
 // EvaluateRule evaluates a single rule (including its ancestor chain from root to child) by name.
+// It enforces both the caller's context deadline and Policy.MaxExecutionTime.
 func (re *RuleEngine) EvaluateRule(ctx context.Context, ruleName string, input map[string]any) (RuleResult, error) {
 	if err := ctx.Err(); err != nil {
 		return RuleResult{}, fmt.Errorf("context cancelled before evaluating rule %q: %w", ruleName, err)
@@ -176,11 +181,14 @@ func (re *RuleEngine) EvaluateRule(ctx context.Context, ruleName string, input m
 	re.mu.RLock()
 	defer re.mu.RUnlock()
 
+	evalCtx, cancel := re.withPolicyTimeoutLocked(ctx)
+	defer cancel()
+
 	activation := re.buildActivationLocked(input)
-	return re.evaluateRuleLocked(ctx, ruleName, activation)
+	return re.evaluateRuleLocked(evalCtx, time.Now(), ruleName, activation)
 }
 
-func (re *RuleEngine) evaluateRuleLocked(ctx context.Context, ruleName string, activation map[string]any) (RuleResult, error) {
+func (re *RuleEngine) evaluateRuleLocked(ctx context.Context, deadlineStart time.Time, ruleName string, activation map[string]any) (RuleResult, error) {
 	start := time.Now()
 
 	if _, exists := re.config.Rules[ruleName]; !exists {
@@ -194,21 +202,27 @@ func (re *RuleEngine) evaluateRuleLocked(ctx context.Context, ruleName string, a
 
 	passed := false
 	for _, r := range allRules {
-		if err := ctx.Err(); err != nil {
-			return RuleResult{}, fmt.Errorf("context cancelled while evaluating rule %q: %w", ruleName, err)
+		if err := re.checkTimeoutLocked(ctx, deadlineStart, ruleName); err != nil {
+			return RuleResult{}, err
 		}
 		program, pExists := re.programs[r]
 		if !pExists {
 			return RuleResult{}, fmt.Errorf("program for rule %q: %w", r, ErrRuleNotFound)
 		}
-		out, _, err := program.Eval(activation)
+		out, _, err := program.ContextEval(ctx, activation)
 		if err != nil {
+			if ctxErr := re.checkTimeoutLocked(ctx, deadlineStart, ruleName); ctxErr != nil {
+				return RuleResult{}, ctxErr
+			}
 			return RuleResult{
 				RuleName: ruleName,
 				Passed:   false,
 				Error:    err,
 				Duration: time.Since(start),
 			}, nil
+		}
+		if ctxErr := re.checkTimeoutLocked(ctx, deadlineStart, ruleName); ctxErr != nil {
+			return RuleResult{}, ctxErr
 		}
 		boolVal, ok := out.Value().(bool)
 		passed = ok && boolVal
@@ -233,6 +247,7 @@ func (re *RuleEngine) evaluateRuleLocked(ctx context.Context, ruleName string, a
 }
 
 // EvaluateRuleset evaluates a ruleset by name, handling rule inheritance and selector logic.
+// It enforces both the caller's context deadline and Policy.MaxExecutionTime.
 func (re *RuleEngine) EvaluateRuleset(ctx context.Context, rulesetName string, input map[string]any) (RulesetResult, error) {
 	if err := ctx.Err(); err != nil {
 		return RulesetResult{}, fmt.Errorf("context cancelled before evaluating ruleset %q: %w", rulesetName, err)
@@ -241,11 +256,14 @@ func (re *RuleEngine) EvaluateRuleset(ctx context.Context, rulesetName string, i
 	re.mu.RLock()
 	defer re.mu.RUnlock()
 
+	evalCtx, cancel := re.withPolicyTimeoutLocked(ctx)
+	defer cancel()
+
 	activation := re.buildActivationLocked(input)
-	return re.evaluateRulesetLocked(ctx, rulesetName, activation)
+	return re.evaluateRulesetLocked(evalCtx, time.Now(), rulesetName, activation)
 }
 
-func (re *RuleEngine) evaluateRulesetLocked(ctx context.Context, rulesetName string, activation map[string]any) (RulesetResult, error) {
+func (re *RuleEngine) evaluateRulesetLocked(ctx context.Context, deadlineStart time.Time, rulesetName string, activation map[string]any) (RulesetResult, error) {
 	start := time.Now()
 
 	ruleset, rOk := re.config.Rulesets[rulesetName]
@@ -258,27 +276,22 @@ func (re *RuleEngine) evaluateRulesetLocked(ctx context.Context, rulesetName str
 		RuleResults: make(map[string]RuleResult, len(ruleset.Rules)),
 	}
 
+	passedCount := 0
 	for _, ruleRef := range ruleset.Rules {
-		ruleResult, err := re.evaluateRuleLocked(ctx, ruleRef, activation)
+		if err := re.checkTimeoutLocked(ctx, deadlineStart, rulesetName); err != nil {
+			return RulesetResult{}, err
+		}
+		ruleResult, err := re.evaluateRuleLocked(ctx, deadlineStart, ruleRef, activation)
 		if err != nil {
 			return RulesetResult{}, err
 		}
 		result.RuleResults[ruleRef] = ruleResult
-
-		if re.policy.StopOnFailure {
-			if ruleset.Selector == SelectorNone && ruleResult.Passed {
-				break
-			}
-			if ruleset.Selector != SelectorOr && ruleset.Selector != SelectorNone && ruleset.MinPassed <= 0 && !ruleResult.Passed {
-				break
-			}
-		}
-	}
-
-	passedCount := 0
-	for _, ruleResult := range result.RuleResults {
 		if ruleResult.Passed {
 			passedCount++
+		}
+
+		if re.shouldShortCircuitLocked(ruleset, ruleResult.Passed, passedCount) {
+			break
 		}
 	}
 
@@ -307,24 +320,45 @@ func (re *RuleEngine) evaluateRulesetLocked(ctx context.Context, rulesetName str
 	return result, nil
 }
 
+func (re *RuleEngine) shouldShortCircuitLocked(ruleset Ruleset, lastPassed bool, passedCount int) bool {
+	if !re.policy.StopOnFailure {
+		return false
+	}
+	if ruleset.MinPassed > 0 {
+		return passedCount >= ruleset.MinPassed
+	}
+	switch ruleset.Selector {
+	case SelectorOr:
+		return lastPassed
+	case SelectorNone:
+		return lastPassed
+	default:
+		return !lastPassed
+	}
+}
+
 // EvaluateAllRulesets evaluates all rulesets defined in the configuration within Policy.MaxExecutionTime.
 func (re *RuleEngine) EvaluateAllRulesets(ctx context.Context, input map[string]any) (map[string]RulesetResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled before evaluating rulesets: %w", err)
+	}
+
 	re.mu.RLock()
 	defer re.mu.RUnlock()
 
-	evalCtx, cancel := context.WithTimeout(ctx, re.policy.MaxExecutionTime)
+	evalCtx, cancel := re.withPolicyTimeoutLocked(ctx)
 	defer cancel()
 
-	start := time.Now()
+	deadlineStart := time.Now()
 	activation := re.buildActivationLocked(input)
 	results := make(map[string]RulesetResult, len(re.config.Rulesets))
 
 	for rulesetName := range re.config.Rulesets {
-		if time.Since(start) >= re.policy.MaxExecutionTime || evalCtx.Err() != nil {
-			return results, fmt.Errorf("timed out waiting for ruleset %s", rulesetName)
+		if err := re.checkTimeoutLocked(evalCtx, deadlineStart, rulesetName); err != nil {
+			return results, err
 		}
 
-		result, err := re.evaluateRulesetLocked(evalCtx, rulesetName, activation)
+		result, err := re.evaluateRulesetLocked(evalCtx, deadlineStart, rulesetName, activation)
 		if err != nil {
 			return results, err
 		}
@@ -332,6 +366,23 @@ func (re *RuleEngine) EvaluateAllRulesets(ctx context.Context, input map[string]
 	}
 
 	return results, nil
+}
+
+func (re *RuleEngine) withPolicyTimeoutLocked(ctx context.Context) (context.Context, context.CancelFunc) {
+	if re.policy.MaxExecutionTime > 0 {
+		return context.WithTimeout(ctx, re.policy.MaxExecutionTime)
+	}
+	return ctx, func() {}
+}
+
+func (re *RuleEngine) checkTimeoutLocked(ctx context.Context, start time.Time, target string) error {
+	if re.policy.MaxExecutionTime > 0 && time.Since(start) >= re.policy.MaxExecutionTime {
+		return fmt.Errorf("timed out evaluating %q after %v: %w", target, re.policy.MaxExecutionTime, context.DeadlineExceeded)
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("evaluation cancelled for %q: %w", target, err)
+	}
+	return nil
 }
 
 // ValidateExpression compiles and type-checks a candidate CEL expression against the engine's CEL environment.
@@ -357,6 +408,7 @@ func (re *RuleEngine) UpsertRule(id string, rule Rule) error {
 		return fmt.Errorf("compiling rule %q: %w", id, err)
 	}
 
+	rule.Tags = slices.Clone(rule.Tags)
 	prevRule, hadPrev := re.config.Rules[id]
 	re.config.Rules[id] = rule
 
@@ -415,13 +467,28 @@ func (re *RuleEngine) UpsertRuleset(id string, ruleset Ruleset) error {
 	re.mu.Lock()
 	defer re.mu.Unlock()
 
+	if err := re.validateRulesetLocked(id, ruleset); err != nil {
+		return err
+	}
+
+	ruleset.Rules = slices.Clone(ruleset.Rules)
+	ruleset.Tags = slices.Clone(ruleset.Tags)
+	re.config.Rulesets[id] = ruleset
+	return nil
+}
+
+func (re *RuleEngine) validateRulesetLocked(id string, ruleset Ruleset) error {
+	if !ruleset.Selector.IsValid() {
+		return fmt.Errorf("ruleset %q has unsupported selector %q: %w", id, ruleset.Selector, ErrInvalidSelector)
+	}
+	if ruleset.MinPassed < 0 || (ruleset.MinPassed > 0 && ruleset.MinPassed > len(ruleset.Rules)) {
+		return fmt.Errorf("ruleset %q min_passed (%d) out of range [0, %d]: %w", id, ruleset.MinPassed, len(ruleset.Rules), ErrInvalidSelector)
+	}
 	for _, ruleRef := range ruleset.Rules {
 		if _, exists := re.config.Rules[ruleRef]; !exists {
 			return fmt.Errorf("ruleset %q references unknown rule %q: %w", id, ruleRef, ErrRuleNotFound)
 		}
 	}
-
-	re.config.Rulesets[id] = ruleset
 	return nil
 }
 
@@ -473,6 +540,12 @@ func (re *RuleEngine) compileRules() error {
 		re.parents[name] = parents
 	}
 
+	for id, ruleset := range re.config.Rulesets {
+		if err := re.validateRulesetLocked(id, ruleset); err != nil {
+			return fmt.Errorf("invalid ruleset %q: %w", id, err)
+		}
+	}
+
 	return nil
 }
 
@@ -491,7 +564,11 @@ func (re *RuleEngine) compileExpressionLocked(expression string) (cel.Program, e
 	if re.optimise {
 		evalOpts = cel.OptOptimize
 	}
-	program, err := re.env.Program(ast, cel.EvalOptions(evalOpts))
+	program, err := re.env.Program(
+		ast,
+		cel.EvalOptions(evalOpts),
+		cel.InterruptCheckFrequency(defaultInterruptCheckFrequency),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create program for expression '%s': %w", expression, err)
 	}
