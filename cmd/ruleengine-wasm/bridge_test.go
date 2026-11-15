@@ -114,6 +114,52 @@ func TestRunEvaluation(t *testing.T) {
 	})
 }
 
+func TestEvaluateArgsAndCLIEntrypoint(t *testing.T) {
+	t.Run("GivenNoArguments_WhenEvaluateArgs_ThenReturnsMissingArgumentError", func(t *testing.T) {
+		out := EvaluateArgs(context.Background(), nil)
+		if !strings.Contains(out, "missing request JSON argument") {
+			t.Errorf("EvaluateArgs(nil) = %s, want missing argument error", out)
+		}
+	})
+
+	t.Run("GivenValidJSONArgument_WhenEvaluateArgs_ThenReturnsPassingResponse", func(t *testing.T) {
+		rawReq := mustMarshalRequest(t, EvaluateRequest{
+			ConfigYAML: testPlaygroundYAML,
+			Variables:  []string{"user"},
+			InputJSON:  testValidInputJSON,
+		})
+		out := EvaluateArgs(context.Background(), []string{rawReq})
+		if !strings.Contains(out, `"ok":true`) {
+			t.Errorf("EvaluateArgs(valid) = %s, want ok:true", out)
+		}
+	})
+
+	t.Run("GivenValidRequestOnStdin_WhenRunCLI_ThenWritesEvaluationResponseToStdout", func(t *testing.T) {
+		rawReq := mustMarshalRequest(t, EvaluateRequest{
+			ConfigYAML: testPlaygroundYAML,
+			Variables:  []string{"user"},
+			InputJSON:  testValidInputJSON,
+		})
+		var out strings.Builder
+		if err := runCLI(context.Background(), strings.NewReader(rawReq), &out); err != nil {
+			t.Fatalf("runCLI() error = %v", err)
+		}
+		if !strings.Contains(out.String(), `"ok":true`) {
+			t.Errorf("runCLI() stdout = %s, want ok:true", out.String())
+		}
+	})
+
+	t.Run("GivenEmptyStdin_WhenRunCLI_ThenExitsCleanlyWithNoOutput", func(t *testing.T) {
+		var out strings.Builder
+		if err := runCLI(context.Background(), strings.NewReader("   \n"), &out); err != nil {
+			t.Fatalf("runCLI(empty) error = %v", err)
+		}
+		if out.Len() != 0 {
+			t.Errorf("runCLI(empty) stdout = %q, want empty", out.String())
+		}
+	})
+}
+
 func mustMarshalRequest(t *testing.T, req EvaluateRequest) string {
 	t.Helper()
 	b, err := json.Marshal(req)

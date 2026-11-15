@@ -32,6 +32,15 @@ type EvaluateResponse struct {
 	DurationMs     float64                             `json:"duration_ms"`
 }
 
+// EvaluateArgs validates that at least one JSON argument was passed by the JS caller
+// and delegates to RunEvaluationJSON.
+func EvaluateArgs(ctx context.Context, args []string) string {
+	if len(args) < 1 {
+		return `{"ok":false,"error":"missing request JSON argument"}`
+	}
+	return RunEvaluationJSON(ctx, args[0])
+}
+
 // RunEvaluationJSON unmarshals a JSON EvaluateRequest, executes it, and returns a JSON EvaluateResponse.
 func RunEvaluationJSON(ctx context.Context, rawRequest string) string {
 	var req EvaluateRequest
